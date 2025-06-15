@@ -29,7 +29,8 @@ const state = {
   messages: {},
   typingTimeouts: {},
   messageListeners: {},
-  typingListeners: {}
+  typingListeners: {},
+  replyingTo: null
 };
 
 // DOM elements
@@ -220,30 +221,57 @@ function setupPresenceSystem(user) {
 
 // User management
 function loadUsers() {
+  console.log('Loading users from database...');
   const usersRef = ref(database, 'users');
   
   onValue(usersRef, (snapshot) => {
     const users = snapshot.val() || {};
+    console.log('Users data from database:', users);
+    console.log('Number of users found:', Object.keys(users).length);
+    
     state.users = users;
     renderUsersList();
   }, (error) => {
     console.error('Error loading users:', error);
+    console.error('Error details:', {
+      code: error.code,
+      message: error.message
+    });
     showError('Failed to load users. Please refresh the page.', null);
   });
 }
 
 function renderUsersList() {
-  if (!elements.usersList) return;
+  console.log('Rendering users list...');
+  console.log('Users list element:', elements.usersList);
+  console.log('Current user:', state.currentUser?.uid);
+  console.log('All users:', state.users);
+  
+  if (!elements.usersList) {
+    console.error('Users list element not found!');
+    return;
+  }
   
   elements.usersList.innerHTML = '';
   
-  Object.entries(state.users).forEach(([uid, user]) => {
-    // Don't show current user in the list
-    if (uid === state.currentUser?.uid) return;
-    
+  const otherUsers = Object.entries(state.users).filter(([uid, user]) => {
+    return uid !== state.currentUser?.uid;
+  });
+  
+  console.log('Users to display (excluding current user):', otherUsers);
+  
+  if (otherUsers.length === 0) {
+    elements.usersList.innerHTML = '<div class="text-center text-gray-500 py-4">No other users online yet.<br><span class="text-xs">Share this app with friends!</span></div>';
+    return;
+  }
+  
+  otherUsers.forEach(([uid, user]) => {
+    console.log('Creating element for user:', uid, user);
     const userElement = createUserElement(uid, user);
     elements.usersList.appendChild(userElement);
   });
+  
+  console.log('Users list rendered successfully');
 }
 
 function createUserElement(uid, user) {
@@ -360,6 +388,20 @@ function createMessageElement(messageId, message) {
   
   let content = '';
   
+  // Add reply preview if this message is a reply
+  if (message.replyTo) {
+    const replyToMessage = message.replyTo;
+    const replyToUser = state.users[replyToMessage.from];
+    const replyToName = replyToUser ? replyToUser.name : 'User';
+    
+    content += `
+      <div class="reply-preview">
+        <div class="reply-to">Replying to ${replyToName}</div>
+        <div class="reply-text">${escapeHtml(replyToMessage.text)}</div>
+      </div>
+    `;
+  }
+  
   // Handle text content
   if (message.text) {
     content += `<div>${escapeHtml(message.text)}</div>`;
@@ -387,6 +429,13 @@ function createMessageElement(messageId, message) {
   `;
   
   messageDiv.innerHTML = content;
+  
+  // Add reply button
+  const replyButton = document.createElement('button');
+  replyButton.className = 'reply-button';
+  replyButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.707 3.293a1 1 0 010 1.414L5.414 7H11a7 7 0 017 7v2a1 1 0 11-2 0v-2a5 5 0 00-5-5H5.414l2.293 2.293a1 1 0 11-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>';
+  replyButton.onclick = () => handleReplyClick(messageId, message);
+  messageDiv.appendChild(replyButton);
   
   return messageDiv;
 }
@@ -445,6 +494,15 @@ async function sendMessage() {
       seen: false
     };
     
+    // Add reply data if there's a reply to a message
+    if (state.replyingTo) {
+      messageData.replyTo = {
+        messageId: state.replyingTo.messageId,
+        text: state.replyingTo.text,
+        from: state.replyingTo.from
+      };
+    }
+    
     if (mediaURL) {
       messageData.mediaURL = mediaURL;
       // If it's just a media URL, don't include it as text
@@ -457,8 +515,10 @@ async function sendMessage() {
     
     await push(messagesRef, messageData);
     
-    // Clear input
+    // Clear input and reply state
     elements.messageText.value = '';
+    state.replyingTo = null;
+    updateReplyUI();
     
     // Stop typing indicator
     await stopTyping();
@@ -589,10 +649,13 @@ function getChatId(uid1, uid2) {
   return uid1 < uid2 ? `${uid1}_${uid2}` : `${uid2}_${uid1}`;
 }
 
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
+function escapeHtml(unsafe) {
+  return unsafe
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 
 function cleanupChatListeners() {
@@ -684,10 +747,75 @@ function initializeApp() {
   }
 }
 
+// Test function to add a sample user (for debugging)
+window.addTestUser = async function() {
+  if (!state.currentUser) {
+    console.log('Please sign in first');
+    return;
+  }
+  
+  try {
+    await set(ref(database, 'users/test-user-123'), {
+      name: 'Test User',
+      email: 'test@example.com',
+      photoURL: 'https://via.placeholder.com/50',
+      online: true,
+      lastSeen: serverTimestamp()
+    });
+    console.log('Test user added successfully');
+  } catch (error) {
+    console.error('Error adding test user:', error);
+  }
+};
+
+// Expose debugging functions
+window.debugChat = {
+  state: () => state,
+  users: () => state.users,
+  currentUser: () => state.currentUser,
+  reloadUsers: loadUsers,
+  addTestUser: window.addTestUser
+};
+
 // Start the application when DOM is loaded
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initializeApp);
 } else {
   initializeApp();
+}
+
+// Add reply state management
+function handleReplyClick(messageId, message) {
+  state.replyingTo = {
+    messageId,
+    text: message.text,
+    from: message.from
+  };
+  updateReplyUI();
+  elements.messageText.focus();
+}
+
+function updateReplyUI() {
+  const replyPreview = document.getElementById('replyPreview');
+  if (state.replyingTo) {
+    const replyToUser = state.users[state.replyingTo.from];
+    const replyToName = replyToUser ? replyToUser.name : 'User';
+    
+    replyPreview.innerHTML = `
+      <div class="reply-preview">
+        <div class="reply-to">Replying to ${replyToName}</div>
+        <div class="reply-text">${escapeHtml(state.replyingTo.text)}</div>
+        <button onclick="cancelReply()" class="cancel-reply">×</button>
+      </div>
+    `;
+    replyPreview.classList.remove('hidden');
+  } else {
+    replyPreview.classList.add('hidden');
+  }
+}
+
+function cancelReply() {
+  state.replyingTo = null;
+  updateReplyUI();
 }
 
