@@ -20,9 +20,9 @@
     </div>
 
     <!-- Main Chat Interface -->
-    <div id="chatSection" class="hidden min-h-screen flex">
+    <div id="chatSection" class="hidden min-h-screen">
         <!-- Sidebar -->
-        <div class="w-1/3 bg-white border-r border-gray-300 flex flex-col">
+        <div class="w-1/3 bg-white dark:bg-gray-800 border-r border-gray-300 dark:border-gray-700">
             <!-- User Profile -->
             <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
                 <div class="flex items-center">
@@ -55,7 +55,7 @@
             <!-- Users List -->
             <div class="flex-1 overflow-y-auto">
                 <div class="p-4">
-                    <h3 class="text-sm font-semibold text-gray-600 mb-3">Online Users</h3>
+                    <h3 class="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-3">Online Users</h3>
                     <div id="usersList" class="space-y-2">
                         <!-- Users will be populated here -->
                     </div>
@@ -66,25 +66,25 @@
         <!-- Chat Area -->
         <div class="flex-1 flex flex-col">
             <!-- Chat Header -->
-            <div id="chatHeader" class="p-4 bg-white border-b border-gray-200 hidden">
+            <div id="chatHeader" class="p-4 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 hidden">
                 <div class="flex items-center">
                     <img id="chatUserPhoto" class="w-8 h-8 rounded-full mr-3" src="" alt="User">
                     <div>
-                        <div id="chatUserName" class="font-semibold text-gray-800"></div>
+                        <div id="chatUserName" class="font-semibold text-gray-800 dark:text-gray-200"></div>
                         <div class="flex items-center">
                             <div id="chatUserStatus" class="w-2 h-2 bg-gray-400 rounded-full mr-2"></div>
-                            <span id="chatUserStatusText" class="text-xs text-gray-500">Offline</span>
+                            <span id="chatUserStatusText" class="text-xs text-gray-500 dark:text-gray-400">Offline</span>
                         </div>
                     </div>
                 </div>
-                <div id="typingIndicator" class="text-xs text-gray-500 italic hidden mt-1">
+                <div id="typingIndicator" class="text-xs text-gray-500 dark:text-gray-400 italic hidden mt-1">
                     User is typing...
                 </div>
             </div>
 
             <!-- Messages Area -->
-            <div id="messagesContainer" class="flex-1 overflow-y-auto p-4 bg-gray-50">
-                <div id="noChat" class="flex items-center justify-center h-full text-gray-500">
+            <div id="messagesContainer" class="flex-1 overflow-y-auto p-4 bg-gray-50 dark:bg-gray-900">
+                <div id="noChat" class="flex items-center justify-center h-full text-gray-500 dark:text-gray-400">
                     Select a user to start chatting
                 </div>
                 <div id="messagesList" class="space-y-3 hidden">
