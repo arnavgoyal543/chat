@@ -1,21 +1,44 @@
 /* Custom styles for chat app */
 
+/* Dark theme support */
+:root {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f3f4f6;
+    --text-primary: #1f2937;
+    --text-secondary: #6b7280;
+    --border-color: #e5e7eb;
+}
+
+[data-theme="dark"] {
+    --bg-primary: #1f2937;
+    --bg-secondary: #111827;
+    --text-primary: #f3f4f6;
+    --text-secondary: #9ca3af;
+    --border-color: #374151;
+}
+
+/* Base styles */
+body {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+}
+
 /* Scrollbar styling */
 ::-webkit-scrollbar {
     width: 6px;
 }
 
 ::-webkit-scrollbar-track {
-    background: #f1f1f1;
+    background: var(--bg-secondary);
 }
 
 ::-webkit-scrollbar-thumb {
-    background: #c1c1c1;
+    background: var(--text-secondary);
     border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: #a1a1a1;
+    background: var(--text-primary);
 }
 
 /* Message bubbles */
@@ -36,11 +59,60 @@
 }
 
 .message-received {
-    background: white;
-    color: #374151;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
     margin-right: auto;
     border-bottom-left-radius: 4px;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+/* Emoji picker styles */
+.emoji-picker {
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    z-index: 50;
+}
+
+.emoji-grid {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 4px;
+    padding: 8px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.emoji-item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 1.25rem;
+    transition: background-color 0.2s;
+}
+
+.emoji-item:hover {
+    background-color: var(--bg-secondary);
+}
+
+/* Theme toggle button */
+.theme-toggle {
+    padding: 8px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.theme-toggle:hover {
+    background-color: var(--bg-secondary);
 }
 
 /* Message status indicators */
@@ -62,7 +134,7 @@
 }
 
 .message-received .message-timestamp {
-    color: #9ca3af;
+    color: var(--text-secondary);
 }
 
 .seen-indicator {
@@ -78,10 +150,11 @@
     cursor: pointer;
     transition: background-color 0.2s;
     border: 2px solid transparent;
+    color: var(--text-primary);
 }
 
 .user-item:hover {
-    background-color: #f3f4f6;
+    background-color: var(--bg-secondary);
 }
 
 .user-item.active {
@@ -110,7 +183,7 @@
     width: 4px;
     height: 4px;
     border-radius: 50%;
-    background-color: #6b7280;
+    background-color: var(--text-secondary);
     margin-left: 4px;
     animation: typing 1.4s infinite ease-in-out;
 }
@@ -121,7 +194,7 @@
     width: 4px;
     height: 4px;
     border-radius: 50%;
-    background-color: #6b7280;
+    background-color: var(--text-secondary);
     margin-right: 4px;
     animation: typing 1.4s infinite ease-in-out 0.2s;
 }
@@ -174,6 +247,93 @@
     pointer-events: none;
 }
 
+/* Reply feature styles */
+.reply-preview {
+    background: var(--bg-secondary);
+    border-left: 3px solid #3b82f6;
+    padding: 4px 8px;
+    margin-bottom: 8px;
+    border-radius: 4px;
+    font-size: 0.875rem;
+}
+
+.message-sent .reply-preview {
+    background: rgba(255, 255, 255, 0.1);
+    border-left-color: #fff;
+}
+
+.reply-to {
+    color: #3b82f6;
+    font-weight: 500;
+    font-size: 0.75rem;
+    margin-bottom: 2px;
+}
+
+.message-sent .reply-to {
+    color: #fff;
+}
+
+.reply-text {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 200px;
+}
+
+.message-sent .reply-text {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.reply-button {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    padding: 4px;
+    border-radius: 4px;
+    opacity: 0;
+    transition: opacity 0.2s;
+    color: var(--text-secondary);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+}
+
+.message-bubble:hover .reply-button {
+    opacity: 1;
+}
+
+.reply-button:hover {
+    background: var(--bg-secondary);
+}
+
+.message-sent .reply-button {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.message-sent .reply-button:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.cancel-reply {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 1.25rem;
+    line-height: 1;
+}
+
+.cancel-reply:hover {
+    background: var(--bg-secondary);
+}
+
 /* Responsive design */
 @media (max-width: 768px) {
     .w-1\/3 {
@@ -189,6 +349,12 @@
     
     .message-bubble {
         max-width: 85%;
+    }
+    
+    .emoji-picker {
+        width: 100%;
+        left: 0;
+        right: 0;
     }
 }
 
@@ -222,95 +388,28 @@
     }
 }
 
-/* Reply feature styles */
-.reply-preview {
-    background: rgba(0, 0, 0, 0.05);
-    border-left: 3px solid #3b82f6;
-    padding: 4px 8px;
-    margin-bottom: 8px;
-    border-radius: 4px;
+/* Success message */
+.success-message {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    background: #10b981;
+    color: white;
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem;
     font-size: 0.875rem;
+    z-index: 50;
+    animation: slideIn 0.3s ease-out;
 }
 
-.message-sent .reply-preview {
-    background: rgba(255, 255, 255, 0.1);
-    border-left-color: #fff;
-}
-
-.reply-to {
-    color: #3b82f6;
-    font-weight: 500;
-    font-size: 0.75rem;
-    margin-bottom: 2px;
-}
-
-.message-sent .reply-to {
-    color: #fff;
-}
-
-.reply-text {
-    color: #6b7280;
-    font-size: 0.75rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 200px;
-}
-
-.message-sent .reply-text {
-    color: rgba(255, 255, 255, 0.8);
-}
-
-.reply-button {
-    position: absolute;
-    top: 4px;
-    right: 4px;
-    padding: 4px;
-    border-radius: 4px;
-    opacity: 0;
-    transition: opacity 0.2s;
-    color: #6b7280;
-    background: transparent;
-    border: none;
-    cursor: pointer;
-}
-
-.message-bubble:hover .reply-button {
-    opacity: 1;
-}
-
-.reply-button:hover {
-    background: rgba(0, 0, 0, 0.05);
-}
-
-.message-sent .reply-button {
-    color: rgba(255, 255, 255, 0.7);
-}
-
-.message-sent .reply-button:hover {
-    background: rgba(255, 255, 255, 0.1);
-}
-
-.cancel-reply {
-    position: absolute;
-    top: 4px;
-    right: 4px;
-    padding: 2px 6px;
-    border-radius: 4px;
-    background: transparent;
-    border: none;
-    color: #6b7280;
-    cursor: pointer;
-    font-size: 1.25rem;
-    line-height: 1;
-}
-
-.cancel-reply:hover {
-    background: rgba(0, 0, 0, 0.05);
-}
-
-/* Make message bubbles relative for absolute positioning of reply button */
-.message-bubble {
-    position: relative;
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
 }
 
