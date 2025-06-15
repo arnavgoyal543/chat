@@ -222,3 +222,95 @@
     }
 }
 
+/* Reply feature styles */
+.reply-preview {
+    background: rgba(0, 0, 0, 0.05);
+    border-left: 3px solid #3b82f6;
+    padding: 4px 8px;
+    margin-bottom: 8px;
+    border-radius: 4px;
+    font-size: 0.875rem;
+}
+
+.message-sent .reply-preview {
+    background: rgba(255, 255, 255, 0.1);
+    border-left-color: #fff;
+}
+
+.reply-to {
+    color: #3b82f6;
+    font-weight: 500;
+    font-size: 0.75rem;
+    margin-bottom: 2px;
+}
+
+.message-sent .reply-to {
+    color: #fff;
+}
+
+.reply-text {
+    color: #6b7280;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 200px;
+}
+
+.message-sent .reply-text {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.reply-button {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    padding: 4px;
+    border-radius: 4px;
+    opacity: 0;
+    transition: opacity 0.2s;
+    color: #6b7280;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+}
+
+.message-bubble:hover .reply-button {
+    opacity: 1;
+}
+
+.reply-button:hover {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+.message-sent .reply-button {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.message-sent .reply-button:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.cancel-reply {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: transparent;
+    border: none;
+    color: #6b7280;
+    cursor: pointer;
+    font-size: 1.25rem;
+    line-height: 1;
+}
+
+.cancel-reply:hover {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+/* Make message bubbles relative for absolute positioning of reply button */
+.message-bubble {
+    position: relative;
+}
+
