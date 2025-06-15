@@ -356,6 +356,9 @@ function loadMessages() {
     state.messages[chatId] = messages;
     renderMessages(messages);
     markMessagesAsSeen();
+    
+    // Scroll to bottom when new messages arrive
+    scrollToBottom();
   }, (error) => {
     console.error('Error loading messages:', error);
     showError('Failed to load messages. Please try again.', null);
@@ -377,8 +380,8 @@ function renderMessages(messages) {
     elements.messagesList.appendChild(messageElement);
   });
   
-  // Scroll to bottom
-  elements.messagesContainer.scrollTop = elements.messagesContainer.scrollHeight;
+  // Scroll to bottom with smooth behavior
+  scrollToBottom();
 }
 
 function createMessageElement(messageId, message) {
@@ -523,6 +526,9 @@ async function sendMessage() {
     
     // Stop typing indicator
     await stopTyping();
+    
+    // Scroll to bottom after sending
+    scrollToBottom();
     
   } catch (error) {
     console.error('Error sending message:', error);
@@ -980,5 +986,13 @@ function showSuccess(message) {
     setTimeout(() => {
         successDiv.remove();
     }, 3000);
+}
+
+// Add scroll to bottom function
+function scrollToBottom() {
+    const messagesContainer = elements.messagesContainer;
+    if (messagesContainer) {
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
 }
 
