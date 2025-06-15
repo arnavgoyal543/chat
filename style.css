@@ -21,6 +21,69 @@
 body {
     background-color: var(--bg-primary);
     color: var(--text-primary);
+    height: 100vh;
+    overflow-y: auto;
+}
+
+/* Chat container styles */
+#chatSection {
+    min-height: 100vh;
+    display: flex;
+}
+
+/* Sidebar */
+.w-1\/3 {
+    background-color: var(--bg-primary);
+    border-right: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+/* Users list container */
+#usersList {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1rem;
+}
+
+/* Chat area */
+.flex-1 {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+/* Messages container */
+#messagesContainer {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1rem;
+    background-color: var(--bg-primary);
+    min-height: 0; /* Important for flex child scrolling */
+}
+
+#messagesList {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding-bottom: 1rem;
+}
+
+/* Message input container */
+#messageInput {
+    background-color: var(--bg-primary);
+    border-top: 1px solid var(--border-color);
+    padding: 1rem;
+    z-index: 10;
+}
+
+/* Chat header */
+#chatHeader {
+    background-color: var(--bg-primary);
+    border-bottom: 1px solid var(--border-color);
+    padding: 1rem;
+    z-index: 10;
 }
 
 /* Scrollbar styling */
@@ -411,5 +474,54 @@ body {
         transform: translateX(0);
         opacity: 1;
     }
+}
+
+/* Chat container styles */
+#chatSection {
+    height: 100vh;
+    overflow: hidden;
+}
+
+#messagesContainer {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1rem;
+    background-color: var(--bg-primary);
+    height: calc(100vh - 180px); /* Adjust based on header and input heights */
+    scroll-behavior: smooth;
+}
+
+#messagesList {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding-bottom: 1rem;
+}
+
+/* Message input container */
+#messageInput {
+    position: sticky;
+    bottom: 0;
+    background-color: var(--bg-primary);
+    border-top: 1px solid var(--border-color);
+    padding: 1rem;
+    z-index: 10;
+}
+
+/* Users list container */
+#usersList {
+    height: calc(100vh - 80px); /* Adjust based on header height */
+    overflow-y: auto;
+    padding: 1rem;
+}
+
+/* Chat header */
+#chatHeader {
+    position: sticky;
+    top: 0;
+    background-color: var(--bg-primary);
+    border-bottom: 1px solid var(--border-color);
+    padding: 1rem;
+    z-index: 10;
 }
 
