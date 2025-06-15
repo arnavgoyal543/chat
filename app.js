@@ -4,7 +4,8 @@ import { auth, database, googleProvider } from './firebase-config.js';
 import { 
   signInWithPopup, 
   signOut, 
-  onAuthStateChanged 
+  onAuthStateChanged,
+  updateProfile
 } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js';
 import { 
   ref, 
@@ -735,16 +736,164 @@ function setupEventListeners() {
   });
 }
 
-// Initialize application
+// Emoji picker functionality
+const emojis = [
+    '😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣',
+    '😊', '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰',
+    '😘', '😗', '😙', '😚', '😋', '😛', '😝', '😜',
+    '🤪', '🤨', '🧐', '🤓', '😎', '🤩', '🥳', '😏',
+    '😒', '😞', '😔', '😟', '😕', '🙁', '☹️', '😣',
+    '😖', '😫', '😩', '🥺', '😢', '😭', '😤', '😠',
+    '😡', '🤬', '🤯', '😳', '🥵', '🥶', '😱', '😨',
+    '😰', '😥', '😓', '🤗', '🤔', '🤭', '🤫', '🤥',
+    '😶', '😐', '😑', '😬', '🙄', '😯', '😦', '😧',
+    '😮', '😲', '🥱', '😴', '🤤', '😪', '😵', '🤐',
+    '🥴', '🤢', '🤮', '🤧', '😷', '🤒', '🤕', '🤑',
+    '🤠', '💩', '👻', '👽', '👾', '🤖', '😺', '😸'
+];
+
+function initializeEmojiPicker() {
+    const emojiPicker = document.getElementById('emojiPicker');
+    const emojiButton = document.getElementById('emojiButton');
+    const messageText = document.getElementById('messageText');
+    
+    // Populate emoji grid
+    const emojiGrid = emojiPicker.querySelector('.grid');
+    emojis.forEach(emoji => {
+        const emojiItem = document.createElement('button');
+        emojiItem.className = 'emoji-item';
+        emojiItem.textContent = emoji;
+        emojiItem.onclick = () => {
+            messageText.value += emoji;
+            messageText.focus();
+            emojiPicker.classList.add('hidden');
+        };
+        emojiGrid.appendChild(emojiItem);
+    });
+    
+    // Toggle emoji picker
+    emojiButton.onclick = (e) => {
+        e.stopPropagation();
+        emojiPicker.classList.toggle('hidden');
+    };
+    
+    // Close emoji picker when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!emojiPicker.contains(e.target) && e.target !== emojiButton) {
+            emojiPicker.classList.add('hidden');
+        }
+    });
+}
+
+// Dark theme functionality
+function initializeTheme() {
+    const themeToggle = document.getElementById('themeToggle');
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)');
+    
+    // Check for saved theme preference or use system preference
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme) {
+        document.documentElement.setAttribute('data-theme', savedTheme);
+    } else {
+        document.documentElement.setAttribute('data-theme', prefersDark.matches ? 'dark' : 'light');
+    }
+    
+    // Toggle theme
+    themeToggle.onclick = () => {
+        const currentTheme = document.documentElement.getAttribute('data-theme');
+        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', newTheme);
+        localStorage.setItem('theme', newTheme);
+    };
+    
+    // Listen for system theme changes
+    prefersDark.addListener((e) => {
+        if (!localStorage.getItem('theme')) {
+            document.documentElement.setAttribute('data-theme', e.matches ? 'dark' : 'light');
+        }
+    });
+}
+
+// Profile settings functionality
+function initializeProfileSettings() {
+    const profileSettingsBtn = document.getElementById('profileSettingsBtn');
+    const profileSettingsModal = document.getElementById('profileSettingsModal');
+    const closeProfileModal = document.getElementById('closeProfileModal');
+    const cancelProfileEdit = document.getElementById('cancelProfileEdit');
+    const saveProfileEdit = document.getElementById('saveProfileEdit');
+    const displayNameInput = document.getElementById('displayName');
+    
+    // Open modal
+    profileSettingsBtn.onclick = () => {
+        displayNameInput.value = state.currentUser.displayName || '';
+        profileSettingsModal.classList.remove('hidden');
+    };
+    
+    // Close modal
+    const closeModal = () => {
+        profileSettingsModal.classList.add('hidden');
+    };
+    
+    closeProfileModal.onclick = closeModal;
+    cancelProfileEdit.onclick = closeModal;
+    
+    // Save changes
+    saveProfileEdit.onclick = async () => {
+        const newDisplayName = displayNameInput.value.trim();
+        
+        if (!newDisplayName) {
+            showError('Display name cannot be empty', null);
+            return;
+        }
+        
+        try {
+            saveProfileEdit.classList.add('btn-loading');
+            
+            // Update user profile in Firebase Auth
+            await updateProfile(auth.currentUser, {
+                displayName: newDisplayName
+            });
+            
+            // Update user data in Realtime Database
+            const userRef = ref(database, `users/${state.currentUser.uid}`);
+            await update(userRef, {
+                name: newDisplayName
+            });
+            
+            // Update local state
+            state.currentUser.displayName = newDisplayName;
+            elements.currentUserName.textContent = newDisplayName;
+            
+            // Update UI in active chat if it's the current user
+            if (state.selectedUser && state.selectedUser.uid === state.currentUser.uid) {
+                elements.chatUserName.textContent = newDisplayName;
+            }
+            
+            closeModal();
+            showSuccess('Display name updated successfully');
+            
+        } catch (error) {
+            console.error('Error updating display name:', error);
+            showError('Failed to update display name. Please try again.', null);
+        } finally {
+            saveProfileEdit.classList.remove('btn-loading');
+        }
+    };
+}
+
+// Update initializeApp function
 function initializeApp() {
-  try {
-    initializeElements();
-    setupEventListeners();
-    console.log('Chat app initialized successfully');
-  } catch (error) {
-    console.error('Error initializing app:', error);
-    showError('Failed to initialize app. Please refresh the page.');
-  }
+    try {
+        initializeElements();
+        setupEventListeners();
+        initializeEmojiPicker();
+        initializeTheme();
+        initializeProfileSettings();
+        console.log('Chat app initialized successfully');
+    } catch (error) {
+        console.error('Error initializing app:', error);
+        showError('Failed to initialize app. Please refresh the page.');
+    }
 }
 
 // Test function to add a sample user (for debugging)
@@ -817,5 +966,19 @@ function updateReplyUI() {
 function cancelReply() {
   state.replyingTo = null;
   updateReplyUI();
+}
+
+// Add success message function
+function showSuccess(message) {
+    const successDiv = document.createElement('div');
+    successDiv.className = 'success-message';
+    successDiv.textContent = message;
+    
+    document.body.appendChild(successDiv);
+    
+    // Remove after 3 seconds
+    setTimeout(() => {
+        successDiv.remove();
+    }, 3000);
 }
 
