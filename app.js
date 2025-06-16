@@ -520,7 +520,9 @@ async function sendMessage() {
       messageData.replyTo = {
         messageId: state.replyingTo.messageId,
         text: state.replyingTo.text,
-        from: state.replyingTo.from
+        from: state.replyingTo.from,
+        type: state.replyingTo.type,
+        mediaURL: state.replyingTo.mediaURL
       };
     }
     
@@ -1126,7 +1128,9 @@ function handleReplyClick(messageId, message) {
   state.replyingTo = {
     messageId,
     text: message.text,
-    from: message.from
+    from: message.from,
+    type: message.type,
+    mediaURL: message.mediaURL
   };
   updateReplyUI();
   elements.messageText.focus();
@@ -1138,10 +1142,38 @@ function updateReplyUI() {
     const replyToUser = state.users[state.replyingTo.from];
     const replyToName = replyToUser ? replyToUser.name : 'User';
     
+    let replyContent = '';
+    
+    // Add text content if exists
+    if (state.replyingTo.text) {
+      replyContent += `<div class="reply-text">${escapeHtml(state.replyingTo.text)}</div>`;
+    }
+    
+    // Add media content if exists
+    if (state.replyingTo.mediaURL) {
+      if (state.replyingTo.type === 'voice') {
+        replyContent += `
+          <div class="reply-media voice-message">
+            <audio controls>
+              <source src="${state.replyingTo.mediaURL}" type="audio/webm">
+              Your browser does not support the audio element.
+            </audio>
+            <span class="voice-duration">Voice note</span>
+          </div>
+        `;
+      } else if (state.replyingTo.mediaURL.startsWith('data:image/') || /\.(jpg|jpeg|png|gif|webp)$/i.test(state.replyingTo.mediaURL)) {
+        replyContent += `
+          <div class="reply-media">
+            <img src="${state.replyingTo.mediaURL}" alt="Shared image" class="reply-image">
+          </div>
+        `;
+      }
+    }
+    
     replyPreview.innerHTML = `
       <div class="reply-preview">
         <div class="reply-to">Replying to ${replyToName}</div>
-        <div class="reply-text">${escapeHtml(state.replyingTo.text)}</div>
+        ${replyContent}
         <button onclick="cancelReply()" class="cancel-reply">×</button>
       </div>
     `;
