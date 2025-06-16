@@ -363,7 +363,7 @@ function loadMessages() {
     markMessagesAsSeen();
     
     // Scroll to bottom when new messages arrive
-    scrollToBottom();
+    scrollToBottom(true);
   }, (error) => {
     console.error('Error loading messages:', error);
     showError('Failed to load messages. Please try again.', null);
@@ -386,7 +386,7 @@ function renderMessages(messages) {
   });
   
   // Scroll to bottom with smooth behavior
-  scrollToBottom();
+  scrollToBottom(true);
 }
 
 function createMessageElement(messageId, message) {
@@ -593,7 +593,7 @@ async function sendMessage() {
     await stopTyping();
     
     // Scroll to bottom after sending
-    scrollToBottom();
+    scrollToBottom(true);
     
   } catch (error) {
     console.error('Error sending message:', error);
@@ -1089,11 +1089,23 @@ async function sendVoiceNote(audioData) {
     
     // Add reply data if there's a reply to a message
     if (state.replyingTo) {
-      messageData.replyTo = {
+      const replyData = {
         messageId: state.replyingTo.messageId,
-        text: state.replyingTo.text,
         from: state.replyingTo.from
       };
+      
+      // Only add text if it exists
+      if (state.replyingTo.text) {
+        replyData.text = state.replyingTo.text;
+      }
+      
+      // Only add media-related fields if it's a media message
+      if (state.replyingTo.mediaURL) {
+        replyData.mediaURL = state.replyingTo.mediaURL;
+        replyData.type = state.replyingTo.type || 'image';
+      }
+      
+      messageData.replyTo = replyData;
     }
     
     await push(messagesRef, messageData);
@@ -1106,7 +1118,7 @@ async function sendVoiceNote(audioData) {
     await stopTyping();
     
     // Scroll to bottom after sending
-    scrollToBottom();
+    scrollToBottom(true);
     
   } catch (error) {
     console.error('Error sending voice note:', error);
@@ -1252,12 +1264,20 @@ function showSuccess(message) {
     }, 3000);
 }
 
-// Add scroll to bottom function
-function scrollToBottom() {
-    const messagesContainer = elements.messagesContainer;
-    if (messagesContainer) {
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-    }
+// Update the scrollToBottom function to be more reliable
+function scrollToBottom(smooth = false) {
+  const messagesContainer = elements.messagesContainer;
+  if (messagesContainer) {
+    const scrollOptions = {
+      top: messagesContainer.scrollHeight,
+      behavior: smooth ? 'smooth' : 'auto'
+    };
+    
+    // Use requestAnimationFrame for more reliable scrolling
+    requestAnimationFrame(() => {
+      messagesContainer.scrollTo(scrollOptions);
+    });
+  }
 }
 
 // Add event listener for Escape key to cancel reply
