@@ -311,92 +311,64 @@ body {
     pointer-events: none;
 }
 
-/* Reply feature styles */
+/* Reply preview styles */
 .reply-preview {
-    background: var(--bg-secondary);
-    border-left: 3px solid #3b82f6;
+    background: rgba(0, 0, 0, 0.05);
+    border-left: 3px solid var(--primary-color);
     padding: 8px;
     margin-bottom: 8px;
     border-radius: 4px;
-    font-size: 0.875rem;
     position: relative;
 }
 
 .message-sent .reply-preview {
     background: rgba(255, 255, 255, 0.1);
-    border-left-color: #fff;
 }
 
 .reply-to {
-    color: #3b82f6;
-    font-weight: 500;
-    font-size: 0.75rem;
+    font-size: 0.8rem;
+    color: var(--primary-color);
     margin-bottom: 4px;
 }
 
-.message-sent .reply-to {
-    color: #fff;
-}
-
 .reply-text {
+    font-size: 0.9rem;
     color: var(--text-secondary);
-    font-size: 0.75rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 200px;
+    word-break: break-word;
 }
 
 .message-sent .reply-text {
     color: rgba(255, 255, 255, 0.8);
 }
 
-.reply-button {
-    position: absolute;
-    top: 4px;
-    right: 4px;
-    padding: 4px;
-    border-radius: 4px;
-    opacity: 0;
-    transition: opacity 0.2s;
-    color: var(--text-secondary);
-    background: transparent;
-    border: none;
-    cursor: pointer;
-}
-
-.message-bubble:hover .reply-button {
-    opacity: 1;
-}
-
-.reply-button:hover {
-    background: var(--bg-secondary);
-}
-
-.message-sent .reply-button {
-    color: rgba(255, 255, 255, 0.7);
-}
-
-.message-sent .reply-button:hover {
-    background: rgba(255, 255, 255, 0.1);
-}
-
 .cancel-reply {
     position: absolute;
     top: 4px;
     right: 4px;
-    padding: 2px 6px;
-    border-radius: 4px;
+    padding: 4px;
+    border-radius: 50%;
     background: transparent;
     border: none;
-    color: var(--text-secondary);
     cursor: pointer;
-    font-size: 1.25rem;
-    line-height: 1;
+    color: var(--text-secondary);
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .cancel-reply:hover {
-    background: var(--bg-secondary);
+    background: rgba(0, 0, 0, 0.1);
+    color: var(--text-primary);
+}
+
+.message-sent .cancel-reply {
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.message-sent .cancel-reply:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.9);
 }
 
 /* Reply media styles */
