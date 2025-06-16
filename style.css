@@ -527,3 +527,70 @@ body {
     z-index: 10;
 }
 
+/* Voice recording styles */
+#voiceButton {
+    position: relative;
+}
+
+#voiceButton.recording {
+    background-color: rgba(239, 68, 68, 0.1);
+}
+
+#voiceButton.recording:hover {
+    background-color: rgba(239, 68, 68, 0.2);
+}
+
+.recording-indicator {
+    position: absolute;
+    top: -30px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(239, 68, 68, 0.9);
+    color: white;
+    padding: 4px 12px;
+    border-radius: 16px;
+    font-size: 0.875rem;
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        transform: translateX(-50%) scale(1);
+    }
+    50% {
+        transform: translateX(-50%) scale(1.05);
+    }
+    100% {
+        transform: translateX(-50%) scale(1);
+    }
+}
+
+/* Voice message styles */
+.voice-message {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 8px;
+    margin-top: 4px;
+}
+
+.message-sent .voice-message {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.voice-message audio {
+    flex: 1;
+    height: 32px;
+}
+
+.voice-message .voice-duration {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.message-sent .voice-message .voice-duration {
+    color: rgba(255, 255, 255, 0.7);
+}
+
