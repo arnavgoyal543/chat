@@ -548,14 +548,18 @@ async function sendMessage() {
     if (state.replyingTo) {
       const replyData = {
         messageId: state.replyingTo.messageId,
-        from: state.replyingTo.from,
-        type: state.replyingTo.type,
-        mediaURL: state.replyingTo.mediaURL
+        from: state.replyingTo.from
       };
       
       // Only add text if it exists
       if (state.replyingTo.text) {
         replyData.text = state.replyingTo.text;
+      }
+      
+      // Only add media-related fields if it's a media message
+      if (state.replyingTo.mediaURL) {
+        replyData.mediaURL = state.replyingTo.mediaURL;
+        replyData.type = state.replyingTo.type || 'image'; // Default to 'image' if type is not specified
       }
       
       messageData.replyTo = replyData;
