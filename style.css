@@ -680,3 +680,236 @@ body {
     color: rgba(255, 255, 255, 0.7);
 }
 
+/* Mobile-first base styles */
+body {
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    height: 100vh;
+    overflow: hidden;
+}
+
+/* Main container */
+.container {
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+}
+
+/* Sidebar styles */
+.sidebar {
+    width: 300px;
+    background: var(--bg-primary);
+    border-right: 1px solid rgba(0, 0, 0, 0.1);
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+/* Chat area styles */
+.chat-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background: var(--bg-secondary);
+}
+
+/* Message bubbles */
+.message-bubble {
+    position: relative;
+    max-width: 70%;
+    padding: 8px 12px;
+    margin: 4px 0;
+    border-radius: 12px;
+    word-wrap: break-word;
+}
+
+.message-sent {
+    background: #3b82f6;
+    color: white;
+    margin-left: auto;
+    border-bottom-right-radius: 4px;
+}
+
+.message-received {
+    background: #e5e7eb;
+    color: #1f2937;
+    margin-right: auto;
+    border-bottom-left-radius: 4px;
+}
+
+/* Mobile responsive styles */
+@media (max-width: 768px) {
+    .container {
+        flex-direction: column;
+    }
+
+    .sidebar {
+        width: 100%;
+        height: auto;
+        border-right: none;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    }
+
+    .chat-area {
+        height: calc(100vh - 60px); /* Adjust based on sidebar height */
+    }
+
+    .message-bubble {
+        max-width: 85%;
+    }
+
+    /* Header styles for mobile */
+    .chat-header {
+        padding: 8px;
+    }
+
+    .chat-header .user-info {
+        flex: 1;
+    }
+
+    .chat-header .back-button {
+        display: block;
+        margin-right: 8px;
+    }
+
+    /* Message input area for mobile */
+    .message-input {
+        padding: 8px;
+    }
+
+    .message-input textarea {
+        max-height: 100px;
+    }
+
+    /* Users list for mobile */
+    .users-list {
+        max-height: 200px;
+        overflow-y: auto;
+    }
+
+    .user-item {
+        padding: 8px;
+    }
+
+    /* Emoji picker for mobile */
+    .emoji-picker {
+        position: fixed;
+        bottom: 60px;
+        left: 0;
+        right: 0;
+        max-height: 300px;
+    }
+
+    .emoji-grid {
+        grid-template-columns: repeat(8, 1fr);
+    }
+
+    /* Voice recording for mobile */
+    .recording-indicator {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 1000;
+    }
+}
+
+/* Tablet responsive styles */
+@media (min-width: 769px) and (max-width: 1024px) {
+    .sidebar {
+        width: 250px;
+    }
+
+    .message-bubble {
+        max-width: 75%;
+    }
+}
+
+/* Dark theme mobile adjustments */
+[data-theme="dark"] .message-received {
+    background: #374151;
+    color: #e5e7eb;
+}
+
+[data-theme="dark"] .sidebar {
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] .chat-header {
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Touch-friendly adjustments */
+@media (hover: none) {
+    .reply-button {
+        opacity: 1;
+    }
+
+    .user-item {
+        padding: 12px;
+    }
+
+    .message-input button {
+        padding: 12px;
+    }
+
+    .emoji-item {
+        padding: 12px;
+    }
+}
+
+/* Landscape mode adjustments */
+@media (max-width: 768px) and (orientation: landscape) {
+    .sidebar {
+        height: 100vh;
+        width: 250px;
+        position: fixed;
+        left: 0;
+        top: 0;
+        z-index: 1000;
+        transform: translateX(-100%);
+        transition: transform 0.3s ease;
+    }
+
+    .sidebar.active {
+        transform: translateX(0);
+    }
+
+    .chat-area {
+        margin-left: 0;
+        width: 100%;
+    }
+
+    .chat-header .menu-button {
+        display: block;
+    }
+}
+
+/* High-DPI screen adjustments */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+    .message-bubble {
+        padding: 10px 14px;
+    }
+
+    .user-item {
+        padding: 10px;
+    }
+}
+
+/* Safe area insets for modern mobile browsers */
+@supports (padding: max(0px)) {
+    .container {
+        padding-left: max(0px, env(safe-area-inset-left));
+        padding-right: max(0px, env(safe-area-inset-right));
+        padding-bottom: max(0px, env(safe-area-inset-bottom));
+    }
+
+    .chat-header {
+        padding-top: max(8px, env(safe-area-inset-top));
+    }
+}
+
