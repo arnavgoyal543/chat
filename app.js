@@ -403,10 +403,38 @@ function createMessageElement(messageId, message) {
     const replyToUser = state.users[replyToMessage.from];
     const replyToName = replyToUser ? replyToUser.name : 'User';
     
+    let replyContent = '';
+    
+    // Add text content if exists
+    if (replyToMessage.text) {
+      replyContent += `<div class="reply-text">${escapeHtml(replyToMessage.text)}</div>`;
+    }
+    
+    // Add media content if exists
+    if (replyToMessage.mediaURL) {
+      if (replyToMessage.type === 'voice') {
+        replyContent += `
+          <div class="reply-media voice-message">
+            <audio controls>
+              <source src="${replyToMessage.mediaURL}" type="audio/webm">
+              Your browser does not support the audio element.
+            </audio>
+            <span class="voice-duration">Voice note</span>
+          </div>
+        `;
+      } else if (replyToMessage.mediaURL.startsWith('data:image/') || /\.(jpg|jpeg|png|gif|webp)$/i.test(replyToMessage.mediaURL)) {
+        replyContent += `
+          <div class="reply-media">
+            <img src="${replyToMessage.mediaURL}" alt="Shared image" class="reply-image">
+          </div>
+        `;
+      }
+    }
+    
     content += `
       <div class="reply-preview">
         <div class="reply-to">Replying to ${replyToName}</div>
-        <div class="reply-text">${escapeHtml(replyToMessage.text)}</div>
+        ${replyContent}
       </div>
     `;
   }
@@ -518,13 +546,19 @@ async function sendMessage() {
     
     // Add reply data if there's a reply to a message
     if (state.replyingTo) {
-      messageData.replyTo = {
+      const replyData = {
         messageId: state.replyingTo.messageId,
-        text: state.replyingTo.text,
         from: state.replyingTo.from,
         type: state.replyingTo.type,
         mediaURL: state.replyingTo.mediaURL
       };
+      
+      // Only add text if it exists
+      if (state.replyingTo.text) {
+        replyData.text = state.replyingTo.text;
+      }
+      
+      messageData.replyTo = replyData;
     }
     
     if (mediaURL) {
