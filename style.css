@@ -104,18 +104,18 @@ body {
     background: var(--text-primary);
 }
 
-/* Message bubbles */
+/* Message bubble styles */
 .message-bubble {
-    max-width: 70%;
-    word-wrap: break-word;
-    padding: 8px 12px;
-    border-radius: 18px;
-    margin-bottom: 4px;
     position: relative;
+    max-width: 70%;
+    padding: 8px 12px;
+    margin: 4px 0;
+    border-radius: 12px;
+    word-wrap: break-word;
 }
 
 .message-sent {
-    background: #3b82f6;
+    background: var(--primary-color);
     color: white;
     margin-left: auto;
     border-bottom-right-radius: 4px;
@@ -126,7 +126,105 @@ body {
     color: var(--text-primary);
     margin-right: auto;
     border-bottom-left-radius: 4px;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+/* Reply button styles */
+.reply-button {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    padding: 4px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.1);
+    border: none;
+    cursor: pointer;
+    color: var(--text-secondary);
+    opacity: 0;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+}
+
+.message-bubble:hover .reply-button {
+    opacity: 1;
+}
+
+.reply-button:hover {
+    background: rgba(0, 0, 0, 0.2);
+    color: var(--text-primary);
+}
+
+.message-sent .reply-button {
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.message-sent .reply-button:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+}
+
+/* Reply preview styles */
+.reply-preview {
+    background: rgba(0, 0, 0, 0.05);
+    border-left: 3px solid var(--primary-color);
+    padding: 8px;
+    margin-bottom: 8px;
+    border-radius: 4px;
+    position: relative;
+}
+
+.message-sent .reply-preview {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.reply-to {
+    font-size: 0.8rem;
+    color: var(--primary-color);
+    margin-bottom: 4px;
+}
+
+.reply-text {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    word-break: break-word;
+}
+
+.message-sent .reply-text {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.cancel-reply {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    padding: 4px;
+    border-radius: 50%;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--text-secondary);
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cancel-reply:hover {
+    background: rgba(0, 0, 0, 0.1);
+    color: var(--text-primary);
+}
+
+.message-sent .cancel-reply {
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.message-sent .cancel-reply:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.9);
 }
 
 /* Emoji picker styles */
@@ -309,66 +407,6 @@ body {
 .loading {
     opacity: 0.6;
     pointer-events: none;
-}
-
-/* Reply preview styles */
-.reply-preview {
-    background: rgba(0, 0, 0, 0.05);
-    border-left: 3px solid var(--primary-color);
-    padding: 8px;
-    margin-bottom: 8px;
-    border-radius: 4px;
-    position: relative;
-}
-
-.message-sent .reply-preview {
-    background: rgba(255, 255, 255, 0.1);
-}
-
-.reply-to {
-    font-size: 0.8rem;
-    color: var(--primary-color);
-    margin-bottom: 4px;
-}
-
-.reply-text {
-    font-size: 0.9rem;
-    color: var(--text-secondary);
-    word-break: break-word;
-}
-
-.message-sent .reply-text {
-    color: rgba(255, 255, 255, 0.8);
-}
-
-.cancel-reply {
-    position: absolute;
-    top: 4px;
-    right: 4px;
-    padding: 4px;
-    border-radius: 50%;
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    color: var(--text-secondary);
-    transition: all 0.2s ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.cancel-reply:hover {
-    background: rgba(0, 0, 0, 0.1);
-    color: var(--text-primary);
-}
-
-.message-sent .cancel-reply {
-    color: rgba(255, 255, 255, 0.6);
-}
-
-.message-sent .cancel-reply:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: rgba(255, 255, 255, 0.9);
 }
 
 /* Reply media styles */
