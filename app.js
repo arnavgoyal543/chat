@@ -358,12 +358,17 @@ function loadMessages() {
   // Set up new listener
   const listener = onValue(messagesRef, (snapshot) => {
     const messages = snapshot.val() || {};
+    const previousMessages = state.messages[chatId] || {};
+    const isNewMessage = Object.keys(messages).length > Object.keys(previousMessages).length;
+    
     state.messages[chatId] = messages;
     renderMessages(messages);
     markMessagesAsSeen();
     
-    // Scroll to bottom when new messages arrive
-    scrollToBottom(true);
+    // Only scroll if there's a new message
+    if (isNewMessage) {
+      scrollToBottom(true);
+    }
   }, (error) => {
     console.error('Error loading messages:', error);
     showError('Failed to load messages. Please try again.', null);
@@ -384,9 +389,6 @@ function renderMessages(messages) {
     const messageElement = createMessageElement(messageId, message);
     elements.messagesList.appendChild(messageElement);
   });
-  
-  // Scroll to bottom with smooth behavior
-  scrollToBottom(true);
 }
 
 function createMessageElement(messageId, message) {
@@ -566,7 +568,7 @@ async function sendMessage() {
       // Only add media-related fields if it's a media message
       if (state.replyingTo.mediaURL) {
         replyData.mediaURL = state.replyingTo.mediaURL;
-        replyData.type = state.replyingTo.type || 'image'; // Default to 'image' if type is not specified
+        replyData.type = state.replyingTo.type || 'image';
       }
       
       messageData.replyTo = replyData;
@@ -592,7 +594,7 @@ async function sendMessage() {
     // Stop typing indicator
     await stopTyping();
     
-    // Scroll to bottom after sending
+    // Always scroll to bottom after sending a message
     scrollToBottom(true);
     
   } catch (error) {
@@ -1117,7 +1119,7 @@ async function sendVoiceNote(audioData) {
     // Stop typing indicator
     await stopTyping();
     
-    // Scroll to bottom after sending
+    // Always scroll to bottom after sending a message
     scrollToBottom(true);
     
   } catch (error) {
@@ -1268,15 +1270,20 @@ function showSuccess(message) {
 function scrollToBottom(smooth = false) {
   const messagesContainer = elements.messagesContainer;
   if (messagesContainer) {
-    const scrollOptions = {
-      top: messagesContainer.scrollHeight,
-      behavior: smooth ? 'smooth' : 'auto'
-    };
+    // Only scroll if we're not already at the bottom
+    const isAtBottom = messagesContainer.scrollHeight - messagesContainer.scrollTop <= messagesContainer.clientHeight + 100;
     
-    // Use requestAnimationFrame for more reliable scrolling
-    requestAnimationFrame(() => {
-      messagesContainer.scrollTo(scrollOptions);
-    });
+    if (!isAtBottom) {
+      const scrollOptions = {
+        top: messagesContainer.scrollHeight,
+        behavior: smooth ? 'smooth' : 'auto'
+      };
+      
+      // Use requestAnimationFrame for more reliable scrolling
+      requestAnimationFrame(() => {
+        messagesContainer.scrollTo(scrollOptions);
+      });
+    }
   }
 }
 
