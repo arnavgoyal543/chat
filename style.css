@@ -139,6 +139,9 @@ body {
     border-radius: 8px;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
     z-index: 50;
+    max-height: 300px;
+    overflow-y: auto;
+    width: 320px;
 }
 
 .emoji-grid {
@@ -146,8 +149,6 @@ body {
     grid-template-columns: repeat(8, 1fr);
     gap: 4px;
     padding: 8px;
-    max-height: 200px;
-    overflow-y: auto;
 }
 
 .emoji-item {
@@ -418,6 +419,7 @@ body {
         width: 100%;
         left: 0;
         right: 0;
+        max-height: 250px;
     }
 }
 
