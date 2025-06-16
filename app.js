@@ -31,7 +31,10 @@ const state = {
   typingTimeouts: {},
   messageListeners: {},
   typingListeners: {},
-  replyingTo: null
+  replyingTo: null,
+  mediaRecorder: null,
+  audioChunks: [],
+  isRecording: false
 };
 
 // DOM elements
@@ -55,7 +58,8 @@ const elements = {
   noChat: null,
   messageInput: null,
   messageText: null,
-  sendBtn: null
+  sendBtn: null,
+  voiceButton: null
 };
 
 // Initialize DOM elements
@@ -80,6 +84,7 @@ function initializeElements() {
   elements.messageInput = document.getElementById('messageInput');
   elements.messageText = document.getElementById('messageText');
   elements.sendBtn = document.getElementById('sendBtn');
+  elements.voiceButton = document.getElementById('voiceButton');
 }
 
 // Error handling utility
@@ -413,7 +418,19 @@ function createMessageElement(messageId, message) {
   
   // Handle media content
   if (message.mediaURL) {
-    content += createMediaContent(message.mediaURL);
+    if (message.type === 'voice') {
+      content += `
+        <div class="voice-message">
+          <audio controls>
+            <source src="${message.mediaURL}" type="audio/webm">
+            Your browser does not support the audio element.
+          </audio>
+          <span class="voice-duration">Voice note</span>
+        </div>
+      `;
+    } else {
+      content += createMediaContent(message.mediaURL);
+    }
   }
   
   // Add timestamp and status
@@ -755,13 +772,24 @@ const emojis = [
   '😶', '😐', '😑', '😬', '🙄', '😯', '😦', '😧',
   '😮', '😲', '🥱', '😴', '🤤', '😪', '😵', '🤐',
   '🥴', '🤢', '🤮', '🤧', '😷', '🤒', '🤕', '🤑',
-  '🤠', '👻', '👽', '👾', '🤖', '😺', '😸', '🤙',
-  '👍', '👎', '👊', '✊', '🎉', '🎊', '🎀', '🌙',
+  '🤠', '💩', '👻', '👽', '👾', '🤖', '😺', '😸',
+  '🙌', '👏', '👋', '🤙', '👍', '👎', '👊', '✊',
   '🤛', '🤜', '🤞', '✌️', '🤟', '🤘', '👌', '🙏',
   '🫶', '🤲', '👐', '✋', '🤚', '🖐️', '🖖', '👈',
-  '☝️', '💓', '💗', '💖', '💘', '💝', '💞', '💕',
-  '❤️', '🧡', '💛', '💚', '💙', '💜', '🤎', '🖤',
-  '🤍', '❣️', '💟', '💯', '💥', '✨', '🌟', '💫',
+  '👉', '👆', '👇', '☝️', '🖕', '✍️','💓', '💗', 
+  '💖', '💘', '💝', '💞', '💕', '❤️',
+  '🧡', '💛', '💚', '💙', '💜', '🤎', '🖤', '🤍',
+  '💔', '❣️', '💟', '💯', '💢', '💥', '🕳️','✨', 
+  '🌟', '💫', '🌈', '☀️', '🌤️', '⛅', '☁️',
+  '🌧️', '⛈️', '🌩️', '🌨️', '❄️', '🌪️', '🌊', '💧',
+  '🔥', '⚡', '🌙', '🌑', '🌕', '🌍', '🪐', '🛸',
+  '🎉', '🎊', '🎈', '🎂', '🎁', '🎀', '🧸', '🎮',
+  '🎧', '🎤', '📱', '💻', '🖥️', '🕹️', '📸', '📷',
+  '📹', '🎬', '📺', '📻', '📡', '⌚', '⏰', '🕰️',
+  '🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼',
+  '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🦄',
+  '🐔', '🐧', '🐦', '🐤', '🐣', '🦆', '🦅', '🦉',
+  '🐢', '🐍', '🦎', '🦂', '🕷️', '🦕', '🦖', '🐙'
 ];
 
 function initializeEmojiPicker() {
@@ -893,6 +921,153 @@ function initializeProfileSettings() {
     };
 }
 
+// Voice recording functionality
+async function initializeVoiceRecording() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    state.mediaRecorder = new MediaRecorder(stream);
+    
+    state.mediaRecorder.ondataavailable = (event) => {
+      if (event.data.size > 0) {
+        state.audioChunks.push(event.data);
+      }
+    };
+    
+    state.mediaRecorder.onstop = async () => {
+      const audioBlob = new Blob(state.audioChunks, { type: 'audio/webm' });
+      const audioUrl = URL.createObjectURL(audioBlob);
+      
+      // Convert blob to base64
+      const reader = new FileReader();
+      reader.readAsDataURL(audioBlob);
+      reader.onloadend = async () => {
+        const base64Audio = reader.result;
+        
+        // Send the voice note
+        await sendVoiceNote(base64Audio);
+        
+        // Clean up
+        state.audioChunks = [];
+        URL.revokeObjectURL(audioUrl);
+      };
+    };
+    
+    // Set up voice button click handler
+    elements.voiceButton.onclick = toggleRecording;
+    
+  } catch (error) {
+    console.error('Error initializing voice recording:', error);
+    showError('Failed to initialize voice recording. Please check microphone permissions.', null);
+  }
+}
+
+function toggleRecording() {
+  if (!state.mediaRecorder) {
+    showError('Voice recording not initialized. Please refresh the page.', null);
+    return;
+  }
+  
+  if (state.isRecording) {
+    stopRecording();
+  } else {
+    startRecording();
+  }
+}
+
+function startRecording() {
+  if (!state.currentUser || !state.selectedUser) {
+    showError('Please select a user to send voice note to.', null);
+    return;
+  }
+  
+  state.audioChunks = [];
+  state.mediaRecorder.start();
+  state.isRecording = true;
+  
+  // Update UI
+  elements.voiceButton.classList.add('recording');
+  elements.voiceButton.innerHTML = `
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor">
+      <circle cx="10" cy="10" r="6" fill="currentColor"/>
+    </svg>
+  `;
+  
+  // Show recording indicator
+  const recordingIndicator = document.createElement('div');
+  recordingIndicator.id = 'recordingIndicator';
+  recordingIndicator.className = 'recording-indicator';
+  recordingIndicator.innerHTML = 'Recording...';
+  elements.messageInput.insertBefore(recordingIndicator, elements.messageInput.firstChild);
+}
+
+function stopRecording() {
+  if (!state.isRecording) return;
+  
+  state.mediaRecorder.stop();
+  state.isRecording = false;
+  
+  // Update UI
+  elements.voiceButton.classList.remove('recording');
+  elements.voiceButton.innerHTML = `
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-600 dark:text-gray-300" viewBox="0 0 20 20" fill="currentColor">
+      <path fill-rule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clip-rule="evenodd" />
+    </svg>
+  `;
+  
+  // Remove recording indicator
+  const recordingIndicator = document.getElementById('recordingIndicator');
+  if (recordingIndicator) {
+    recordingIndicator.remove();
+  }
+}
+
+async function sendVoiceNote(audioData) {
+  if (!state.currentUser || !state.selectedUser) return;
+  
+  try {
+    elements.sendBtn.classList.add('btn-loading');
+    
+    const chatId = getChatId(state.currentUser.uid, state.selectedUser.uid);
+    const messagesRef = ref(database, `messages/${chatId}`);
+    
+    const messageData = {
+      from: state.currentUser.uid,
+      to: state.selectedUser.uid,
+      timestamp: serverTimestamp(),
+      seen: false,
+      mediaURL: audioData,
+      type: 'voice'
+    };
+    
+    // Add reply data if there's a reply to a message
+    if (state.replyingTo) {
+      messageData.replyTo = {
+        messageId: state.replyingTo.messageId,
+        text: state.replyingTo.text,
+        from: state.replyingTo.from
+      };
+    }
+    
+    await push(messagesRef, messageData);
+    
+    // Clear reply state
+    state.replyingTo = null;
+    updateReplyUI();
+    
+    // Stop typing indicator
+    await stopTyping();
+    
+    // Scroll to bottom after sending
+    scrollToBottom();
+    
+  } catch (error) {
+    console.error('Error sending voice note:', error);
+    showError('Failed to send voice note. Please try again.', null);
+  } finally {
+    elements.sendBtn.classList.remove('btn-loading');
+  }
+}
+
 // Update initializeApp function
 function initializeApp() {
     try {
@@ -901,6 +1076,7 @@ function initializeApp() {
         initializeEmojiPicker();
         initializeTheme();
         initializeProfileSettings();
+        initializeVoiceRecording();
         console.log('Chat app initialized successfully');
     } catch (error) {
         console.error('Error initializing app:', error);
