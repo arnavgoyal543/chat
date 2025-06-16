@@ -497,7 +497,8 @@ function createMediaContent(mediaURL) {
 async function sendMessage() {
   const messageText = elements.messageText.value.trim();
   
-  if (!messageText || !state.currentUser || !state.selectedUser) return;
+  // Allow sending if there's a reply even if text is empty
+  if ((!messageText && !state.replyingTo) || !state.currentUser || !state.selectedUser) return;
   
   try {
     elements.sendBtn.classList.add('btn-loading');
@@ -532,7 +533,7 @@ async function sendMessage() {
       if (messageText !== mediaURL) {
         messageData.text = messageText.replace(mediaURL, '').trim();
       }
-    } else {
+    } else if (messageText) {
       messageData.text = messageText;
     }
     
