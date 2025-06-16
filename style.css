@@ -115,17 +115,23 @@ body {
 }
 
 .message-sent {
-    background: var(--primary-color);
+    background: #3b82f6; /* Blue color */
     color: white;
     margin-left: auto;
     border-bottom-right-radius: 4px;
 }
 
 .message-received {
-    background: var(--bg-secondary);
-    color: var(--text-primary);
+    background: #e5e7eb; /* Grey color */
+    color: #1f2937; /* Dark grey text */
     margin-right: auto;
     border-bottom-left-radius: 4px;
+}
+
+/* Dark theme adjustments */
+[data-theme="dark"] .message-received {
+    background: #374151; /* Darker grey for dark theme */
+    color: #e5e7eb; /* Light grey text for dark theme */
 }
 
 /* Reply button styles */
@@ -167,10 +173,32 @@ body {
     color: white;
 }
 
+/* Message status styles */
+.message-status {
+    font-size: 0.75rem;
+    margin-top: 4px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.message-received .message-status {
+    color: #6b7280; /* Grey text for received messages */
+}
+
+[data-theme="dark"] .message-received .message-status {
+    color: #9ca3af; /* Lighter grey for dark theme */
+}
+
+.seen-indicator {
+    color: #60a5fa; /* Light blue for seen indicator */
+}
+
 /* Reply preview styles */
 .reply-preview {
     background: rgba(0, 0, 0, 0.05);
-    border-left: 3px solid var(--primary-color);
+    border-left: 3px solid #3b82f6; /* Blue border */
     padding: 8px;
     margin-bottom: 8px;
     border-radius: 4px;
@@ -183,18 +211,26 @@ body {
 
 .reply-to {
     font-size: 0.8rem;
-    color: var(--primary-color);
+    color: #3b82f6; /* Blue color */
     margin-bottom: 4px;
+}
+
+.message-sent .reply-to {
+    color: white;
 }
 
 .reply-text {
     font-size: 0.9rem;
-    color: var(--text-secondary);
+    color: #4b5563; /* Dark grey text */
     word-break: break-word;
 }
 
 .message-sent .reply-text {
     color: rgba(255, 255, 255, 0.8);
+}
+
+[data-theme="dark"] .reply-text {
+    color: #9ca3af; /* Light grey for dark theme */
 }
 
 .cancel-reply {
