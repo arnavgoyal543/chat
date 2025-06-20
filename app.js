@@ -35,7 +35,15 @@ const state = {
   replyingTo: null,
   mediaRecorder: null,
   audioChunks: [],
-  isRecording: false
+  isRecording: false,
+
+  // Add these variables to state for pagination
+  messagePagination: {
+    limit: 50,
+    loaded: 0,
+    oldestKey: null,
+    chatId: null
+  }
 };
 
 // DOM elements
@@ -340,6 +348,9 @@ function selectUser(uid, user) {
     renderMessages(state.messages[chatId]);
     markMessagesAsSeen();
   }
+
+  // Always load the latest messages with pagination
+  loadMessages(true);
 }
 
 function updateChatHeader() {
@@ -363,427 +374,273 @@ function showChatInterface() {
 }
 
 // Message management
-function loadMessages() {
+function loadMessages(initial = true) {
   if (!state.currentUser || !state.selectedUser) return;
 
   const chatId = getChatId(state.currentUser.uid, state.selectedUser.uid);
-  // Limit to last 50 messages for performance
-  const messagesRef = query(ref(database, `messages/${chatId}`), limitToLast(50));
+  state.messagePagination.chatId = chatId;
+  let messagesQuery;
+  let limit = state.messagePagination.limit;
+
+  if (initial) {
+    messagesQuery = query(ref(database, `messages/${chatId}`), limitToLast(limit));
+  } else {
+    // Load more: fetch messages older than oldestKey
+    messagesQuery = query(
+      ref(database, `messages/${chatId}`),
+      orderByChild('timestamp'),
+      endAt(state.messages[chatId][state.messagePagination.oldestKey].timestamp - 1),
+      limitToLast(limit)
+    );
+  }
 
   // Clean up existing listener
   if (state.messageListeners[chatId]) {
-    off(messagesRef, state.messageListeners[chatId]);
+    off(ref(database, `messages/${chatId}`), state.messageListeners[chatId]);
   }
 
   // Set up new listener
-  const listener = onValue(messagesRef, (snapshot) => {
+  const listener = onValue(messagesQuery, (snapshot) => {
     const messages = snapshot.val() || {};
-    const previousMessages = state.messages[chatId] || {};
-    const isNewMessage = Object.keys(messages).length > Object.keys(previousMessages).length;
-
-    // Find the latest message
-    let latestMsg = null;
-    let latestKey = null;
-    Object.entries(messages).forEach(([key, msg]) => {
-      if (!latestMsg || (msg.timestamp > latestMsg.timestamp)) {
-        latestMsg = msg;
-        latestKey = key;
-      }
-    });
-
-    // Show toast if:
-    // - There is a new message
-    // - The message is from the other user
-    // - The chat is NOT currently open
-    if (
-      isNewMessage &&
-      latestMsg &&
-      latestMsg.from !== state.currentUser.uid &&
-      (!state.selectedUser || state.selectedUser.uid !== latestMsg.from)
-    ) {
-      showToastNotification(state.users[latestMsg.from], latestMsg);
+    const keys = Object.keys(messages);
+    if (keys.length === 0) {
+      removeLoadMoreButton();
+      return;
     }
 
-    state.messages[chatId] = messages;
-    renderMessages(messages);
+    // Save oldest key for pagination
+    const sortedKeys = keys.sort((a, b) => messages[a].timestamp - messages[b].timestamp);
+    state.messagePagination.oldestKey = sortedKeys[0];
+    state.messagePagination.loaded = keys.length;
+
+    // If less than limit, hide load more
+    if (keys.length < limit) {
+      removeLoadMoreButton();
+    } else {
+      addLoadMoreButton();
+    }
+
+    // Merge messages for "load more"
+    if (!initial && state.messages[chatId]) {
+      state.messages[chatId] = { ...messages, ...state.messages[chatId] };
+      renderMessages(messages, true); // Prepend
+    } else {
+      state.messages[chatId] = messages;
+      renderMessages(messages);
+    }
     markMessagesAsSeen().catch(console.error);
   }, (error) => {
     console.error('Error loading messages:', error);
     showError('Failed to load messages. Please try again.', null);
   });
-  
+
   state.messageListeners[chatId] = listener;
 }
 
-function renderMessages(messages) {
+// Update renderMessages to prepend messages if loading more
+function renderMessages(messages, prepend = false) {
   if (!elements.messagesList) return;
 
-  // Only append new messages if possible
   const sortedMessages = Object.entries(messages)
     .sort(([, a], [, b]) => a.timestamp - b.timestamp);
 
-  // If already rendered, only append new
-  if (elements.messagesList.childElementCount === sortedMessages.length) return;
-
-  // Otherwise, clear and render all (fallback)
-  elements.messagesList.innerHTML = '';
+  if (!prepend) {
+    elements.messagesList.innerHTML = '';
+  }
   sortedMessages.forEach(([messageId, message]) => {
+    // If prepend, only add messages not already in DOM
+    if (prepend && document.getElementById(`msg-${messageId}`)) return;
     const messageElement = createMessageElement(messageId, message);
-    elements.messagesList.appendChild(messageElement);
+    messageElement.id = `msg-${messageId}`;
+    if (prepend) {
+      elements.messagesList.insertBefore(messageElement, elements.messagesList.firstChild);
+    } else {
+      elements.messagesList.appendChild(messageElement);
+    }
   });
 }
 
-function createMessageElement(messageId, message) {
-  const messageDiv = document.createElement('div');
-  const isSent = message.from === state.currentUser.uid;
-  
-  messageDiv.className = `message-bubble ${isSent ? 'message-sent' : 'message-received'}`;
-  
-  let content = '';
-  
-  // Add reply preview if this message is a reply
-  if (message.replyTo) {
-    const replyToMessage = message.replyTo;
-    const replyToUser = state.users[replyToMessage.from];
+// Add Load More button logic
+function addLoadMoreButton() {
+  let btn = document.getElementById('loadMoreBtn');
+  if (!btn) {
+    btn = document.createElement('button');
+    btn.id = 'loadMoreBtn';
+    btn.className = 'load-more-btn';
+    btn.textContent = 'Load More';
+    btn.onclick = loadMoreMessages;
+    elements.messagesList.parentNode.insertBefore(btn, elements.messagesList);
+  }
+  btn.classList.remove('hidden');
+}
+
+function removeLoadMoreButton() {
+  const btn = document.getElementById('loadMoreBtn');
+  if (btn) btn.classList.add('hidden');
+}
+
+// Load more messages handler
+function loadMoreMessages() {
+  loadMessages(false);
+}
+
+// Modified loadMessages for pagination
+function loadMessages(initial = true) {
+  if (!state.currentUser || !state.selectedUser) return;
+
+  const chatId = getChatId(state.currentUser.uid, state.selectedUser.uid);
+  state.messagePagination.chatId = chatId;
+  let messagesQuery;
+  let limit = state.messagePagination.limit;
+
+  if (initial) {
+    messagesQuery = query(ref(database, `messages/${chatId}`), limitToLast(limit));
+  } else {
+    // Load more: fetch messages older than oldestKey
+    messagesQuery = query(
+      ref(database, `messages/${chatId}`),
+      orderByChild('timestamp'),
+      endAt(state.messages[chatId][state.messagePagination.oldestKey].timestamp - 1),
+      limitToLast(limit)
+    );
+  }
+
+  // Clean up existing listener
+  if (state.messageListeners[chatId]) {
+    off(ref(database, `messages/${chatId}`), state.messageListeners[chatId]);
+  }
+
+  // Set up new listener
+  const listener = onValue(messagesQuery, (snapshot) => {
+    const messages = snapshot.val() || {};
+    const keys = Object.keys(messages);
+    if (keys.length === 0) {
+      removeLoadMoreButton();
+      return;
+    }
+
+    // Save oldest key for pagination
+    const sortedKeys = keys.sort((a, b) => messages[a].timestamp - messages[b].timestamp);
+    state.messagePagination.oldestKey = sortedKeys[0];
+    state.messagePagination.loaded = keys.length;
+
+    // If less than limit, hide load more
+    if (keys.length < limit) {
+      removeLoadMoreButton();
+    } else {
+      addLoadMoreButton();
+    }
+
+    // Merge messages for "load more"
+    if (!initial && state.messages[chatId]) {
+      state.messages[chatId] = { ...messages, ...state.messages[chatId] };
+      renderMessages(messages, true); // Prepend
+    } else {
+      state.messages[chatId] = messages;
+      renderMessages(messages);
+    }
+    markMessagesAsSeen().catch(console.error);
+  }, (error) => {
+    console.error('Error loading messages:', error);
+    showError('Failed to load messages. Please try again.', null);
+  });
+
+  state.messageListeners[chatId] = listener;
+}
+
+// In selectUser, always call loadMessages(true)
+function selectUser(uid, user) {
+  state.selectedUser = { uid, ...user };
+
+  updateChatHeader();
+  showChatInterface();
+  setupTypingListener();
+
+  // Always load the latest messages with pagination
+  loadMessages(true);
+}
+
+// Add reply state management
+function handleReplyClick(messageId, message) {
+  state.replyingTo = {
+    messageId,
+    text: message.text,
+    from: message.from,
+    type: message.type,
+    mediaURL: message.mediaURL
+  };
+  updateReplyUI();
+  elements.messageText.focus();
+}
+
+function updateReplyUI() {
+  const replyPreview = document.getElementById('replyPreview');
+  if (state.replyingTo) {
+    const replyToUser = state.users[state.replyingTo.from];
     const replyToName = replyToUser ? replyToUser.name : 'User';
     
     let replyContent = '';
     
     // Add text content if exists
-    if (replyToMessage.text) {
-      replyContent += `<div class="reply-text">${escapeHtml(replyToMessage.text)}</div>`;
+    if (state.replyingTo.text) {
+      replyContent += `<div class="reply-text">${escapeHtml(state.replyingTo.text)}</div>`;
     }
     
     // Add media content if exists
-    if (replyToMessage.mediaURL) {
-      if (replyToMessage.type === 'voice') {
+    if (state.replyingTo.mediaURL) {
+      if (state.replyingTo.type === 'voice') {
         replyContent += `
           <div class="reply-media voice-message">
             <audio controls>
-              <source src="${replyToMessage.mediaURL}" type="audio/webm">
+              <source src="${state.replyingTo.mediaURL}" type="audio/webm">
               Your browser does not support the audio element.
             </audio>
             <span class="voice-duration">Voice note</span>
           </div>
         `;
-      } else if (replyToMessage.mediaURL.startsWith('data:image/') || /\.(jpg|jpeg|png|gif|webp)$/i.test(replyToMessage.mediaURL)) {
+      } else if (state.replyingTo.mediaURL.startsWith('data:image/') || /\.(jpg|jpeg|png|gif|webp)$/i.test(state.replyingTo.mediaURL)) {
         replyContent += `
           <div class="reply-media">
-            <img src="${replyToMessage.mediaURL}" alt="Shared image" class="reply-image">
+            <img src="${state.replyingTo.mediaURL}" alt="Shared image" class="reply-image">
           </div>
         `;
       }
     }
     
-    content += `
+    replyPreview.innerHTML = `
       <div class="reply-preview">
         <div class="reply-to">Replying to ${replyToName}</div>
         ${replyContent}
+        <button onclick="cancelReply()" class="cancel-reply">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
+          </svg>
+        </button>
       </div>
     `;
-  }
-  
-  // Handle text content
-  if (message.text) {
-    content += `<div>${escapeHtml(message.text)}</div>`;
-  }
-  
-  // Handle media content
-  if (message.mediaURL) {
-    if (message.type === 'voice') {
-      content += `
-        <div class="voice-message">
-          <audio controls>
-            <source src="${message.mediaURL}" type="audio/webm">
-            Your browser does not support the audio element.
-          </audio>
-          <span class="voice-duration">Voice note</span>
-        </div>
-      `;
-    } else {
-      content += createMediaContent(message.mediaURL);
-    }
-  }
-  
-  // Add timestamp and status
-  const timestamp = new Date(message.timestamp).toLocaleTimeString([], { 
-    hour: '2-digit', 
-    minute: '2-digit' 
-  });
-  
-  const statusClass = isSent ? '' : 'received';
-  const seenIndicator = isSent && message.seen ? '<span class="seen-indicator">✓✓</span>' : '';
-  
-  content += `
-    <div class="message-status ${statusClass}">
-      <span class="message-timestamp">${timestamp}</span>
-      ${seenIndicator}
-    </div>
-  `;
-  
-  messageDiv.innerHTML = content;
-  
-  // Add reply button
-  const replyButton = document.createElement('button');
-  replyButton.className = 'reply-button';
-  replyButton.innerHTML = `
-    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-      <path fill-rule="evenodd" d="M7.707 3.293a1 1 0 010 1.414L5.414 7H11a7 7 0 007 7v2a1 1 0 11-2 0v-2a5 5 0 00-5-5H5.414l2.293 2.293a1 1 0 11-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"/>
-    </svg>
-  `;
-  replyButton.onclick = (e) => {
-    e.stopPropagation();
-    handleReplyClick(messageId, message);
-  };
-  messageDiv.appendChild(replyButton);
-  
-  return messageDiv;
-}
-
-// 1. Lazy load images in createMediaContent
-function createMediaContent(mediaURL) {
-  const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(mediaURL);
-  const isAudio = /\.(mp3|wav|ogg|m4a)$/i.test(mediaURL);
-  const isBase64Image = mediaURL.startsWith('data:image/');
-  const isBase64Audio = mediaURL.startsWith('data:audio/');
-
-  if (isImage || isBase64Image) {
-    return `
-      <div class="message-media">
-        <img src="${mediaURL}" alt="Shared image" loading="lazy" onerror="this.alt='Failed to load image'; this.style.display='none';">
-      </div>
-    `;
-  } else if (isAudio || isBase64Audio) {
-    return `
-      <div class="message-media">
-        <audio controls>
-          <source src="${mediaURL}" type="audio/mpeg">
-          Your browser does not support the audio element.
-        </audio>
-      </div>
-    `;
+    replyPreview.classList.remove('hidden');
   } else {
-    // Fallback for other URLs
-    return `
-      <div class="message-media">
-        <a href="${mediaURL}" target="_blank" rel="noopener noreferrer" class="text-blue-500 underline">
-          ${mediaURL}
-        </a>
-      </div>
-    `;
+    replyPreview.classList.add('hidden');
   }
 }
 
-// 2. Debounce typing indicator updates
-let typingTimeout;
-let typingDebounce;
-async function handleTyping() {
-  if (!state.currentUser || !state.selectedUser) return;
-
-  // Debounce typing updates to 1 per 500ms
-  if (typingDebounce) clearTimeout(typingDebounce);
-  typingDebounce = setTimeout(async () => {
-    try {
-      const chatId = getChatId(state.currentUser.uid, state.selectedUser.uid);
-      const typingRef = ref(database, `typing/${chatId}/${state.currentUser.uid}`);
-      await set(typingRef, {
-        typing: true,
-        timestamp: serverTimestamp()
-      }).catch(console.error);
-
-      if (typingTimeout) clearTimeout(typingTimeout);
-      typingTimeout = setTimeout(async () => {
-        await stopTyping().catch(console.error);
-      }, 3000);
-    } catch (error) {
-      console.error('Error setting typing status:', error);
-    }
-  }, 500);
+function cancelReply() {
+  state.replyingTo = null;
+  updateReplyUI();
 }
 
-async function stopTyping() {
-  if (!state.currentUser || !state.selectedUser) return;
-  
-  try {
-    const chatId = getChatId(state.currentUser.uid, state.selectedUser.uid);
-    const typingRef = ref(database, `typing/${chatId}/${state.currentUser.uid}`);
+// Add success message function
+function showSuccess(message) {
+    const successDiv = document.createElement('div');
+    successDiv.className = 'success-message';
+    successDiv.textContent = message;
     
-    await set(typingRef, null);
+    document.body.appendChild(successDiv);
     
-    if (typingTimeout) {
-      clearTimeout(typingTimeout);
-      typingTimeout = null;
-    }
-    
-  } catch (error) {
-    console.error('Error removing typing status:', error);
-  }
-}
-
-function setupTypingListener() {
-  if (!state.currentUser || !state.selectedUser) return;
-  
-  const chatId = getChatId(state.currentUser.uid, state.selectedUser.uid);
-  const typingRef = ref(database, `typing/${chatId}/${state.selectedUser.uid}`);
-  
-  // Clean up existing listener
-  if (state.typingListeners[chatId]) {
-    off(typingRef, state.typingListeners[chatId]);
-  }
-  
-  // Set up new listener
-  const listener = onValue(typingRef, (snapshot) => {
-    const typingData = snapshot.val();
-    const isTyping = typingData && typingData.typing;
-    
-    if (isTyping) {
-      elements.typingIndicator.innerHTML = `<span class="typing-dots">${state.selectedUser.name} is typing</span>`;
-      elements.typingIndicator.classList.remove('hidden');
-    } else {
-      elements.typingIndicator.classList.add('hidden');
-    }
-  });
-  
-  state.typingListeners[chatId] = listener;
-}
-
-// Utility functions
-function getChatId(uid1, uid2) {
-  return uid1 < uid2 ? `${uid1}_${uid2}` : `${uid2}_${uid1}`;
-}
-
-function escapeHtml(unsafe) {
-  return unsafe
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
-
-function cleanupChatListeners() {
-  // Remove all message listeners
-  Object.keys(state.messageListeners).forEach(chatId => {
-    const messagesRef = ref(database, `messages/${chatId}`);
-    off(messagesRef, state.messageListeners[chatId]);
-    delete state.messageListeners[chatId];
-  });
-
-  // Remove all typing listeners
-  Object.keys(state.typingListeners).forEach(chatId => {
-    const typingRef = ref(database, `typing/${chatId}/${state.selectedUser ? state.selectedUser.uid : ''}`);
-    off(typingRef, state.typingListeners[chatId]);
-    delete state.typingListeners[chatId];
-  });
-}
-
-// Add this function anywhere before setupEventListeners is called
-
-async function sendMessage() {
-  const messageText = elements.messageText.value.trim();
-  if ((!messageText && !state.replyingTo) || !state.currentUser || !state.selectedUser) return;
-
-  try {
-    elements.sendBtn.classList.add('btn-loading');
-
-    const chatId = getChatId(state.currentUser.uid, state.selectedUser.uid);
-    const messagesRef = ref(database, `messages/${chatId}`);
-
-    const messageData = {
-      from: state.currentUser.uid,
-      to: state.selectedUser.uid,
-      timestamp: serverTimestamp(),
-      seen: false
-    };
-
-    if (state.replyingTo) {
-      const replyData = {
-        messageId: state.replyingTo.messageId,
-        from: state.replyingTo.from
-      };
-      if (state.replyingTo.text) replyData.text = state.replyingTo.text;
-      if (state.replyingTo.mediaURL) {
-        replyData.mediaURL = state.replyingTo.mediaURL;
-        replyData.type = state.replyingTo.type || 'image';
-      }
-      messageData.replyTo = replyData;
-    }
-
-    if (messageText) {
-      messageData.text = messageText;
-    }
-
-    await push(messagesRef, messageData).catch(console.error);
-
-    elements.messageText.value = '';
-    state.replyingTo = null;
-    updateReplyUI();
-
-    await stopTyping().catch(console.error);
-
-  } catch (error) {
-    console.error('Error sending message:', error);
-    showError('Failed to send message. Please try again.', null);
-  } finally {
-    elements.sendBtn.classList.remove('btn-loading');
-  }
-}
-
-// Event listeners setup
-function setupEventListeners() {
-  // Authentication events
-  elements.loginBtn.addEventListener('click', signInWithGoogle);
-  elements.logoutBtn.addEventListener('click', signOutUser);
-  
-  // Message events
-  elements.sendBtn.addEventListener('click', sendMessage);
-  elements.messageText.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      sendMessage();
-    }
-  });
-  
-  // Typing indicator events
-  elements.messageText.addEventListener('input', handleTyping);
-  elements.messageText.addEventListener('blur', stopTyping);
-  
-  // Authentication state changes
-  onAuthStateChanged(auth, (user) => {
-    if (user) {
-      state.currentUser = user;
-      
-      // Update UI
-      elements.currentUserName.textContent = user.displayName;
-      elements.currentUserPhoto.src = user.photoURL;
-      
-      // Show chat interface
-      elements.loginSection.classList.add('hidden');
-      elements.chatSection.classList.remove('hidden');
-      
-      // Setup presence and load data
-      setupPresenceSystem(user);
-      loadUsers();
-      
-    } else {
-      state.currentUser = null;
-      state.selectedUser = null;
-      
-      // Clean up listeners
-      cleanupChatListeners();
-      
-      // Show login interface
-      elements.chatSection.classList.add('hidden');
-      elements.loginSection.classList.remove('hidden');
-    }
-  });
-  
-  // Handle page unload
-  window.addEventListener('beforeunload', async () => {
-    if (state.currentUser) {
-      await stopTyping();
-    }
-  });
+    // Remove after 3 seconds
+    setTimeout(() => {
+        successDiv.remove();
+    }, 3000);
 }
 
 // Emoji picker functionality
@@ -1156,217 +1013,271 @@ if (document.readyState === 'loading') {
 } else {
   initializeApp();
 }
-// Add reply state management
-function handleReplyClick(messageId, message) {
-  state.replyingTo = {
-    messageId,
-    text: message.text,
-    from: message.from,
-    type: message.type,
-    mediaURL: message.mediaURL
-  };
-  updateReplyUI();
-  elements.messageText.focus();
+
+// Utility functions
+function getChatId(uid1, uid2) {
+  return uid1 < uid2 ? `${uid1}_${uid2}` : `${uid2}_${uid1}`;
 }
 
-function updateReplyUI() {
-  const replyPreview = document.getElementById('replyPreview');
-  if (state.replyingTo) {
-    const replyToUser = state.users[state.replyingTo.from];
-    const replyToName = replyToUser ? replyToUser.name : 'User';
-    
-    let replyContent = '';
-    
-    // Add text content if exists
-    if (state.replyingTo.text) {
-      replyContent += `<div class="reply-text">${escapeHtml(state.replyingTo.text)}</div>`;
-    }
-    
-    // Add media content if exists
-    if (state.replyingTo.mediaURL) {
-      if (state.replyingTo.type === 'voice') {
-        replyContent += `
-          <div class="reply-media voice-message">
-            <audio controls>
-              <source src="${state.replyingTo.mediaURL}" type="audio/webm">
-              Your browser does not support the audio element.
-            </audio>
-            <span class="voice-duration">Voice note</span>
-          </div>
-        `;
-      } else if (state.replyingTo.mediaURL.startsWith('data:image/') || /\.(jpg|jpeg|png|gif|webp)$/i.test(state.replyingTo.mediaURL)) {
-        replyContent += `
-          <div class="reply-media">
-            <img src="${state.replyingTo.mediaURL}" alt="Shared image" class="reply-image">
-          </div>
-        `;
-      }
-    }
-    
-    replyPreview.innerHTML = `
-      <div class="reply-preview">
-        <div class="reply-to">Replying to ${replyToName}</div>
-        ${replyContent}
-        <button onclick="cancelReply()" class="cancel-reply">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
-          </svg>
-        </button>
-      </div>
-    `;
-    replyPreview.classList.remove('hidden');
-  } else {
-    replyPreview.classList.add('hidden');
-  }
+function escapeHtml(unsafe) {
+  return unsafe
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 
-function cancelReply() {
-  state.replyingTo = null;
-  updateReplyUI();
-}
-
-// Add success message function
-function showSuccess(message) {
-    const successDiv = document.createElement('div');
-    successDiv.className = 'success-message';
-    successDiv.textContent = message;
-    
-    document.body.appendChild(successDiv);
-    
-    // Remove after 3 seconds
-    setTimeout(() => {
-        successDiv.remove();
-    }, 3000);
-}
-// Add event listener for Escape key to cancel reply
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && state.replyingTo) {
-    cancelReply();
-  }
-});
-
-function showToastNotification(fromUser, message) {
-  const toast = document.getElementById('toastNotification');
-  if (!toast) return;
-
-  let msg = '';
-  if (message.text) {
-    msg = message.text;
-  } else if (message.type === 'voice') {
-    msg = 'Voice message';
-  } else if (message.mediaURL) {
-    msg = 'Media message';
-  } else {
-    msg = 'New message';
-  }
-
-  toast.innerHTML = `<span class="toast-user">${fromUser?.name || 'User'}:</span> ${msg}`;
-  toast.classList.remove('hidden');
-
-  // Show notification in tab title
-  document.title = `🔔 New message from ${fromUser?.name || 'User'}!`;
-
-  // Hide after 4 seconds and restore title
-  setTimeout(() => {
-    toast.classList.add('hidden');
-    document.title = originalTitle;
-  }, 4000);
-
-  // Optional: Click to jump to chat
-  toast.onclick = () => {
-    if (fromUser && fromUser.uid) {
-      selectUser(fromUser.uid, fromUser);
-      toast.classList.add('hidden');
-      document.title = originalTitle;
-    }
-  };
-}
-
-const originalTitle = document.title;
-
-// Listen to all chats with other users
-function listenToAllChats() {
-  if (!state.currentUser) return;
-  // Remove old listeners
+function cleanupChatListeners() {
+  // Remove all message listeners
   Object.keys(state.messageListeners).forEach(chatId => {
     const messagesRef = ref(database, `messages/${chatId}`);
     off(messagesRef, state.messageListeners[chatId]);
     delete state.messageListeners[chatId];
   });
 
-  // Listen to all chats with other users
-  Object.keys(state.users).forEach(uid => {
-    if (uid === state.currentUser.uid) return;
-    const chatId = getChatId(state.currentUser.uid, uid);
-    const messagesRef = ref(database, `messages/${chatId}`);
-    const listener = onValue(messagesRef, (snapshot) => {
-      const messages = snapshot.val() || {};
-      const previousMessages = state.messages[chatId] || {};
-      const isNewMessage = Object.keys(messages).length > Object.keys(previousMessages).length;
-
-      // Find the latest message
-      let latestMsg = null;
-      Object.entries(messages).forEach(([key, msg]) => {
-        if (!latestMsg || (msg.timestamp > latestMsg.timestamp)) {
-          latestMsg = msg;
-        }
-      });
-
-      // Show toast if:
-      // - There is a new message
-      // - The message is from the other user
-      // - The chat is NOT currently open
-      if (
-        isNewMessage &&
-        latestMsg &&
-        latestMsg.from !== state.currentUser.uid &&
-        (!state.selectedUser || getChatId(state.currentUser.uid, state.selectedUser.uid) !== chatId)
-      ) {
-        showToastNotification(state.users[latestMsg.from], latestMsg);
-      }
-
-      state.messages[chatId] = messages;
-
-      // Only render messages if this chat is currently open
-      if (state.selectedUser && getChatId(state.currentUser.uid, state.selectedUser.uid) === chatId) {
-        renderMessages(messages);
-        markMessagesAsSeen();
-      }
-    });
-    state.messageListeners[chatId] = listener;
+  // Remove all typing listeners
+  Object.keys(state.typingListeners).forEach(chatId => {
+    const typingRef = ref(database, `typing/${chatId}/${state.selectedUser ? state.selectedUser.uid : ''}`);
+    off(typingRef, state.typingListeners[chatId]);
+    delete state.typingListeners[chatId];
   });
 }
 
-// Call listenToAllChats on user state change
-onAuthStateChanged(auth, (user) => {
-  if (user) {
-    state.currentUser = user;
-    listenToAllChats(); // Start listening to all chats
-  } else {
-    state.currentUser = null;
-    state.selectedUser = null;
-    
-    // Clean up listeners
-    cleanupChatListeners();
+// Add this function anywhere before setupEventListeners is called
+
+async function sendMessage() {
+  const messageText = elements.messageText.value.trim();
+  if ((!messageText && !state.replyingTo) || !state.currentUser || !state.selectedUser) return;
+
+  try {
+    elements.sendBtn.classList.add('btn-loading');
+
+    const chatId = getChatId(state.currentUser.uid, state.selectedUser.uid);
+    const messagesRef = ref(database, `messages/${chatId}`);
+
+    const messageData = {
+      from: state.currentUser.uid,
+      to: state.selectedUser.uid,
+      timestamp: serverTimestamp(),
+      seen: false
+    };
+
+    if (state.replyingTo) {
+      const replyData = {
+        messageId: state.replyingTo.messageId,
+        from: state.replyingTo.from
+      };
+      if (state.replyingTo.text) replyData.text = state.replyingTo.text;
+      if (state.replyingTo.mediaURL) {
+        replyData.mediaURL = state.replyingTo.mediaURL;
+        replyData.type = state.replyingTo.type || 'image';
+      }
+      messageData.replyTo = replyData;
+    }
+
+    if (messageText) {
+      messageData.text = messageText;
+    }
+
+    await push(messagesRef, messageData).catch(console.error);
+
+    elements.messageText.value = '';
+    state.replyingTo = null;
+    updateReplyUI();
+
+    await stopTyping().catch(console.error);
+
+  } catch (error) {
+    console.error('Error sending message:', error);
+    showError('Failed to send message. Please try again.', null);
+  } finally {
+    elements.sendBtn.classList.remove('btn-loading');
   }
-});
+}
 
-async function markMessagesAsSeen() {
-  if (!state.currentUser || !state.selectedUser) return;
-  const chatId = getChatId(state.currentUser.uid, state.selectedUser.uid);
-  const messages = state.messages[chatId] || {};
-  const updates = {};
-  let hasUnseen = false;
-
-  Object.entries(messages).forEach(([msgId, msg]) => {
-    if (msg.from === state.selectedUser.uid && !msg.seen) {
-      updates[`messages/${chatId}/${msgId}/seen`] = true;
-      hasUnseen = true;
+// Event listeners setup
+function setupEventListeners() {
+  // Authentication events
+  elements.loginBtn.addEventListener('click', signInWithGoogle);
+  elements.logoutBtn.addEventListener('click', signOutUser);
+  
+  // Message events
+  elements.sendBtn.addEventListener('click', sendMessage);
+  elements.messageText.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      sendMessage();
     }
   });
+  
+  // Typing indicator events
+  elements.messageText.addEventListener('input', handleTyping);
+  elements.messageText.addEventListener('blur', stopTyping);
+  
+  // Authentication state changes
+  onAuthStateChanged(auth, (user) => {
+    if (user) {
+      state.currentUser = user;
+      
+      // Update UI
+      elements.currentUserName.textContent = user.displayName;
+      elements.currentUserPhoto.src = user.photoURL;
+      
+      // Show chat interface
+      elements.loginSection.classList.add('hidden');
+      elements.chatSection.classList.remove('hidden');
+      
+      // Setup presence and load data
+      setupPresenceSystem(user);
+      loadUsers();
+      
+    } else {
+      state.currentUser = null;
+      state.selectedUser = null;
+      
+      // Clean up listeners
+      cleanupChatListeners();
+      
+      // Show login interface
+      elements.chatSection.classList.add('hidden');
+      elements.loginSection.classList.remove('hidden');
+    }
+  });
+  
+  // Handle page unload
+  window.addEventListener('beforeunload', async () => {
+    if (state.currentUser) {
+      await stopTyping();
+    }
+  });
+}
 
-  if (hasUnseen) {
-    await update(ref(database), updates);
+// 2. Debounce typing indicator updates
+let typingTimeout;
+let typingDebounce;
+async function handleTyping() {
+  if (!state.currentUser || !state.selectedUser) return;
+
+  // Debounce typing updates to 1 per 500ms
+  if (typingDebounce) clearTimeout(typingDebounce);
+  typingDebounce = setTimeout(async () => {
+    try {
+      const typingRef = ref(database, `typing/${state.messagePagination.chatId}/${state.currentUser.uid}`);
+      set(typingRef, true);
+      
+      // Remove typing indicator after 1 second of inactivity
+      if (typingTimeout) clearTimeout(typingTimeout);
+      typingTimeout = setTimeout(() => {
+        set(typingRef, false);
+      }, 1000);
+    } catch (error) {
+      console.error('Error updating typing status:', error);
+    }
+  }, 500);
+}
+
+// Stop typing indicator
+async function stopTyping() {
+  if (!state.currentUser || !state.selectedUser) return;
+  
+  try {
+    const typingRef = ref(database, `typing/${state.messagePagination.chatId}/${state.currentUser.uid}`);
+    await set(typingRef, false);
+  } catch (error) {
+    console.error('Error stopping typing indicator:', error);
   }
 }
 
+// Mark messages as seen
+async function markMessagesAsSeen() {
+  if (!state.currentUser || !state.selectedUser) return;
+  
+  try {
+    const chatId = getChatId(state.currentUser.uid, state.selectedUser.uid);
+    const messages = state.messages[chatId] || {};
+    const unseenMessages = Object.values(messages).filter(msg => msg.from !== state.currentUser.uid && !msg.seen);
+    
+    if (unseenMessages.length === 0) return;
+    
+    const updates = {};
+    unseenMessages.forEach(msg => {
+      updates[`messages/${chatId}/${msg.id}/seen`] = true;
+    });
+    
+    await update(ref(database), updates);
+    console.log('Messages marked as seen:', unseenMessages.length);
+  } catch (error) {
+    console.error('Error marking messages as seen:', error);
+  }
+}
+
+// Create message element
+function createMessageElement(messageId, message) {
+  const isOwnMessage = message.from === state.currentUser.uid;
+  const messageClass = isOwnMessage ? 'message-outgoing' : 'message-incoming';
+  
+  // Create message div
+  const messageDiv = document.createElement('div');
+  messageDiv.className = `message ${messageClass}`;
+  messageDiv.dataset.id = messageId;
+  
+  // Message content
+  let content = '';
+  if (message.text) {
+    content += `<div class="message-text">${escapeHtml(message.text)}</div>`;
+  }
+  
+  // Media content
+  if (message.mediaURL) {
+    if (message.type === 'voice') {
+      content += `
+        <div class="message-media voice-message">
+          <audio controls>
+            <source src="${message.mediaURL}" type="audio/webm">
+            Your browser does not support the audio element.
+          </audio>
+          <span class="voice-duration">Voice note</span>
+        </div>
+      `;
+    } else if (message.mediaURL.startsWith('data:image/') || /\.(jpg|jpeg|png|gif|webp)$/i.test(message.mediaURL)) {
+      content += `
+        <div class="message-media">
+          <img src="${message.mediaURL}" alt="Shared image" class="message-image">
+        </div>
+      `;
+    }
+  }
+  
+  // Replying message
+  if (message.replyTo) {
+    const replyToUser = state.users[message.replyTo.from];
+    const replyToName = replyToUser ? replyToUser.name : 'User';
+    
+    let replyContent = '';
+    if (message.replyTo.text) {
+      replyContent += `<div class="reply-text">${escapeHtml(message.replyTo.text)}</div>`;
+    }
+    if (message.replyTo.mediaURL) {
+      replyContent += `
+        <div class="reply-media">
+          <img src="${message.replyTo.mediaURL}" alt="Shared image" class="reply-image">
+        </div>
+      `;
+    }
+    
+    content = `
+      <div class="reply-preview">
+        <div class="reply-to">Replying to ${replyToName}</div>
+        ${replyContent}
+      </div>
+      ${content}
+    `;
+  }
+  
+  messageDiv.innerHTML = content;
+  
+  return messageDiv;
+}
+
+// ...existing code...
