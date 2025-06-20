@@ -405,11 +405,6 @@ function loadMessages() {
     state.messages[chatId] = messages;
     renderMessages(messages);
     markMessagesAsSeen();
-
-    // Only scroll if there's a new message
-    if (isNewMessage) {
-      scrollToBottom(true);
-    }
   }, (error) => {
     console.error('Error loading messages:', error);
     showError('Failed to load messages. Please try again.', null);
@@ -634,9 +629,6 @@ async function sendMessage() {
     
     // Stop typing indicator
     await stopTyping();
-    
-    // Always scroll to bottom after sending a message
-    scrollToBottom(true);
     
   } catch (error) {
     console.error('Error sending message:', error);
@@ -863,13 +855,24 @@ const emojis = [
   '😶', '😐', '😑', '😬', '🙄', '😯', '😦', '😧',
   '😮', '😲', '🥱', '😴', '🤤', '😪', '😵', '🤐',
   '🥴', '🤢', '🤮', '🤧', '😷', '🤒', '🤕', '🤑',
-  '🤠', '😺', '😸', '💓', '💗', '💖', '💘', '💝',
-  '💞', '💕', '❤️', '💔', '❣️', '💟',
-  '🧡', '💛', '💚', '💙', '💜', '🤎', '🖤', '🤍',
+  '🤠', '💩', '👻', '👽', '👾', '🤖', '😺', '😸',
   '🙌', '👏', '👋', '🤙', '👍', '👎', '👊', '✊',
   '🤛', '🤜', '🤞', '✌️', '🤟', '🤘', '👌', '🙏',
   '🫶', '🤲', '👐', '✋', '🤚', '🖐️', '🖖', '👈',
-  '👉', '👆', '👇', '☝️', '🖕', '✍️',
+  '👉', '👆', '👇', '☝️', '🖕', '✍️','💓', '💗', 
+  '💖', '💘', '💝', '💞', '💕', '❤️',
+  '🧡', '💛', '💚', '💙', '💜', '🤎', '🖤', '🤍',
+  '💔', '❣️', '💟', '💯', '💢', '💥', '🕳️','✨', 
+  '🌟', '💫', '🌈', '☀️', '🌤️', '⛅', '☁️',
+  '🌧️', '⛈️', '🌩️', '🌨️', '❄️', '🌪️', '🌊', '💧',
+  '🔥', '⚡', '🌙', '🌑', '🌕', '🌍', '🪐', '🛸',
+  '🎉', '🎊', '🎈', '🎂', '🎁', '🎀', '🧸', '🎮',
+  '🎧', '🎤', '📱', '💻', '🖥️', '🕹️', '📸', '📷',
+  '📹', '🎬', '📺', '📻', '📡', '⌚', '⏰', '🕰️',
+  '🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼',
+  '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🦄',
+  '🐔', '🐧', '🐦', '🐤', '🐣', '🦆', '🦅', '🦉',
+  '🐢', '🐍', '🦎', '🦂', '🕷️', '🦕', '🦖', '🐙'
 ];
 
 function initializeEmojiPicker() {
@@ -1149,9 +1152,6 @@ async function sendVoiceNote(audioData) {
     // Stop typing indicator
     await stopTyping();
     
-    // Always scroll to bottom after sending a message
-    scrollToBottom(true);
-    
   } catch (error) {
     console.error('Error sending voice note:', error);
     showError('Failed to send voice note. Please try again.', null);
@@ -1212,14 +1212,6 @@ if (document.readyState === 'loading') {
 } else {
   initializeApp();
 }
-
-// Add this for real-time notification updates
-setInterval(() => {
-  if (state.currentUser && elements.usersList) {
-    renderUsersList();
-  }
-}, 1000);
-
 // Add reply state management
 function handleReplyClick(messageId, message) {
   state.replyingTo = {
@@ -1395,7 +1387,6 @@ function listenToAllChats() {
       if (state.selectedUser && getChatId(state.currentUser.uid, state.selectedUser.uid) === chatId) {
         renderMessages(messages);
         markMessagesAsSeen();
-        if (isNewMessage) scrollToBottom(true);
       }
     });
     state.messageListeners[chatId] = listener;
