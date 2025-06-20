@@ -367,27 +367,6 @@ function showChatInterface() {
 }
 
 // Update renderMessages to prepend messages if loading more
-function renderMessages(messages, prepend = false) {
-  if (!elements.messagesList) return;
-
-  const sortedMessages = Object.entries(messages)
-    .sort(([, a], [, b]) => a.timestamp - b.timestamp);
-
-  if (!prepend) {
-    elements.messagesList.innerHTML = '';
-  }
-  sortedMessages.forEach(([messageId, message]) => {
-    // If prepend, only add messages not already in DOM
-    if (prepend && document.getElementById(`msg-${messageId}`)) return;
-    const messageElement = createMessageElement(messageId, message);
-    messageElement.id = `msg-${messageId}`;
-    if (prepend) {
-      elements.messagesList.insertBefore(messageElement, elements.messagesList.firstChild);
-    } else {
-      elements.messagesList.appendChild(messageElement);
-    }
-  });
-}
 
 // Add Load More button logic
 function addLoadMoreButton() {
