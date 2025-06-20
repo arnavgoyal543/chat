@@ -1353,3 +1353,22 @@ onAuthStateChanged(auth, (user) => {
   }
 });
 
+async function markMessagesAsSeen() {
+  if (!state.currentUser || !state.selectedUser) return;
+  const chatId = getChatId(state.currentUser.uid, state.selectedUser.uid);
+  const messages = state.messages[chatId] || {};
+  const updates = {};
+  let hasUnseen = false;
+
+  Object.entries(messages).forEach(([msgId, msg]) => {
+    if (msg.from === state.selectedUser.uid && !msg.seen) {
+      updates[`messages/${chatId}/${msgId}/seen`] = true;
+      hasUnseen = true;
+    }
+  });
+
+  if (hasUnseen) {
+    await update(ref(database), updates);
+  }
+}
+
