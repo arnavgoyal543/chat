@@ -1028,7 +1028,10 @@ function setupEventListeners() {
       sendMessage();
     }
   });
-  
+  function handleTyping() {
+  // Example: set typing indicator in database or UI
+  // You can implement your typing logic here
+}
   // Typing indicator events
   elements.messageText.addEventListener('input', handleTyping);
   elements.messageText.addEventListener('blur', stopTyping);
