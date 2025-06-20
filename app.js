@@ -364,6 +364,12 @@ function showChatInterface() {
 // Message management
 const MESSAGE_LIMIT = 50; // Show only 50 recent messages by default
 
+// Add a simple in-memory cache for messages per chat
+const messageCache = {};
+/// Add a simple in-memory cache for media (images/audio) by URL
+const mediaCache = {};
+
+// Update loadMessages to use cache if available and not showAll
 function loadMessages(showAll = false) {
   if (!state.currentUser || !state.selectedUser) return;
 
@@ -375,10 +381,17 @@ function loadMessages(showAll = false) {
     off(messagesRef, state.messageListeners[chatId]);
   }
 
+  // Use cache if available and not showAll
+  if (messageCache[chatId] && !showAll) {
+    renderMessages(messageCache[chatId], showAll);
+    markMessagesAsSeen();
+  }
+
   // Set up new listener
   const listener = onValue(messagesRef, (snapshot) => {
     const messages = snapshot.val() || {};
     state.messages[chatId] = messages;
+    messageCache[chatId] = messages; // Update cache
     renderMessages(messages, showAll);
     markMessagesAsSeen();
   }, (error) => {
@@ -536,26 +549,87 @@ function createMessageElement(messageId, message) {
   return messageDiv;
 }
 
+// Update createMediaContent for lazy loading images and media caching
 function createMediaContent(mediaURL) {
   const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(mediaURL);
   const isAudio = /\.(mp3|wav|ogg|m4a)$/i.test(mediaURL);
   const isBase64Image = mediaURL.startsWith('data:image/');
   const isBase64Audio = mediaURL.startsWith('data:audio/');
-if (isImage || isBase64Image) {
-  return `
-    <div class="message-media">
-      <img src="${mediaURL}" alt="Shared image" onerror="this.alt='Failed to load image'; this.style.display='none';">
-    </div>
-  `;
-} else if (isAudio || isBase64Audio) {
+
+  // Media cache check
+  if (mediaCache[mediaURL]) {
+    if (isImage || isBase64Image) {
+      return `
+        <div class="message-media">
+          <img src="${mediaCache[mediaURL]}" alt="Shared image" loading="lazy" onerror="this.alt='Failed to load image'; this.style.display='none';">
+        </div>
+      `;
+    } else if (isAudio || isBase64Audio) {
+      const audioId = `audio-${Math.random().toString(36).substr(2, 9)}`;
+      setTimeout(() => {
+        const audioDiv = document.getElementById(audioId);
+        if (audioDiv) {
+          audioDiv.innerHTML = `
+            <audio controls>
+              <source src="${mediaCache[mediaURL]}" type="audio/mpeg">
+              Your browser does not support the audio element.
+            </audio>
+          `;
+        }
+      }, 0);
+      return `<div class="message-media"><div id="${audioId}"></div></div>`;
+    }
+  }
+
+  // Not cached yet, so cache and render
+  if (isImage || isBase64Image) {
+    // Preload and cache image
+    if (!mediaCache[mediaURL]) {
+      const img = new window.Image();
+      img.src = mediaURL;
+      img.onload = () => { mediaCache[mediaURL] = mediaURL; };
+      img.onerror = () => { mediaCache[mediaURL] = ''; };
+    }
     return `
       <div class="message-media">
-        <audio controls>
-          <source src="${mediaURL}" type="audio/mpeg">
-          Your browser does not support the audio element.
-        </audio>
+        <img src="${mediaURL}" alt="Shared image" loading="lazy" onerror="this.alt='Failed to load image'; this.style.display='none';">
       </div>
     `;
+  } else if (isAudio || isBase64Audio) {
+    // Preload and cache audio
+    if (!mediaCache[mediaURL]) {
+      mediaCache[mediaURL] = mediaURL;
+    }
+    // Lazy load audio by only adding <audio> when in viewport
+    const audioId = `audio-${Math.random().toString(36).substr(2, 9)}`;
+    setTimeout(() => {
+      const audioDiv = document.getElementById(audioId);
+      if (audioDiv && 'IntersectionObserver' in window) {
+        const observer = new IntersectionObserver((entries, obs) => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting) {
+              audioDiv.innerHTML = `
+                <audio controls>
+                  <source src="${mediaURL}" type="audio/mpeg">
+                  Your browser does not support the audio element.
+                </audio>
+              `;
+              obs.disconnect();
+            }
+          });
+        });
+        observer.observe(audioDiv);
+      } else if (audioDiv) {
+        // Fallback: load immediately
+        audioDiv.innerHTML = `
+          <audio controls>
+            <source src="${mediaURL}" type="audio/mpeg">
+            Your browser does not support the audio element.
+          </audio>
+        `;
+      }
+    }, 0);
+    return `<div class="message-media"><div id="${audioId}"></div></div>`;
   } else {
     // Fallback for other URLs
     return `
@@ -856,11 +930,9 @@ const emojis = [
   '😶', '😐', '😑', '😬', '🙄', '😯', '😦', '😧',
   '😮', '😲', '🥱', '😴', '🤤', '😪', '😵', '🤐',
   '🥴', '🤢', '🤮', '🤧', '😷', '🤒', '🤕', '🤑',
-  '🤠', '😺', '😸',
   '🙌', '👏', '👋', '🤙', '👍', '👎', '👊', '✊',
   '🤛', '🤜', '🤞', '✌️', '🤟', '🤘', '👌', '🙏',
-  '🫶', '🤲', '👐', '✋', '🤚', '🖐️', '🖖', '👈',
-  '👉', '👆', '👇', '☝️', '🖕', '✍️','💓', '💗', 
+  '🫶', '✍️', '💓', '💗', 
   '💖', '💘', '💝', '💞', '💕', '❤️',
   '🧡', '💛', '💚', '💙', '💜', '🤎', '🖤', '🤍',
 ];
