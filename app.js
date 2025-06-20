@@ -660,23 +660,19 @@ function escapeHtml(unsafe) {
 }
 
 function cleanupChatListeners() {
-  if (state.selectedUser) {
-    const chatId = getChatId(state.currentUser.uid, state.selectedUser.uid);
-    
-    // Clean up message listener
-    if (state.messageListeners[chatId]) {
-      const messagesRef = ref(database, `messages/${chatId}`);
-      off(messagesRef, state.messageListeners[chatId]);
-      delete state.messageListeners[chatId];
-    }
-    
-    // Clean up typing listener
-    if (state.typingListeners[chatId]) {
-      const typingRef = ref(database, `typing/${chatId}/${state.selectedUser.uid}`);
-      off(typingRef, state.typingListeners[chatId]);
-      delete state.typingListeners[chatId];
-    }
-  }
+  // Remove all message listeners
+  Object.keys(state.messageListeners).forEach(chatId => {
+    const messagesRef = ref(database, `messages/${chatId}`);
+    off(messagesRef, state.messageListeners[chatId]);
+    delete state.messageListeners[chatId];
+  });
+
+  // Remove all typing listeners
+  Object.keys(state.typingListeners).forEach(chatId => {
+    const typingRef = ref(database, `typing/${chatId}/${state.selectedUser ? state.selectedUser.uid : ''}`);
+    off(typingRef, state.typingListeners[chatId]);
+    delete state.typingListeners[chatId];
+  });
 }
 
 // Add this function anywhere before setupEventListeners is called
