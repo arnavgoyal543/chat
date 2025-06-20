@@ -863,62 +863,7 @@ function cleanupChatListeners() {
   }
 }
 
-// Event listeners setup
-function setupEventListeners() {
-  // Authentication events
-  elements.loginBtn.addEventListener('click', signInWithGoogle);
-  elements.logoutBtn.addEventListener('click', signOutUser);
-
-  // Message events
-  elements.sendBtn.addEventListener('click', sendMessage);
-  elements.messageText.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      sendMessage();
-    }
-  });
-
-  // Typing indicator events
-  elements.messageText.addEventListener('input', throttledHandleTyping);
-  elements.messageText.addEventListener('blur', stopTyping);
-
-  // Authentication state changes
-  onAuthStateChanged(auth, (user) => {
-    if (user) {
-      state.currentUser = user;
-
-      // Update UI
-      elements.currentUserName.textContent = user.displayName;
-      elements.currentUserPhoto.src = user.photoURL;
-
-      // Show chat interface
-      elements.loginSection.classList.add('hidden');
-      elements.chatSection.classList.remove('hidden');
-
-      // Setup presence and load data
-      setupPresenceSystem(user);
-      loadUsers();
-
-    } else {
-      state.currentUser = null;
-      state.selectedUser = null;
-
-      // Clean up listeners
-      cleanupChatListeners();
-
-      // Show login interface
-      elements.chatSection.classList.add('hidden');
-      elements.loginSection.classList.remove('hidden');
-    }
-  });
-
-  // Handle page unload
-  window.addEventListener('beforeunload', async () => {
-    if (state.currentUser) {
-      await stopTyping();
-    }
-  });
-}
+// Event listeners setu
 
 // Emoji picker functionality
 const emojis = [
