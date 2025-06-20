@@ -334,8 +334,6 @@ function selectUser(uid, user) {
 
   state.selectedUser = { uid, ...user };
 
-  // Update UI
-  // renderUsersList(); // REMOVE THIS LINE
   updateChatHeader();
   showChatInterface();
   loadMessages();
@@ -1324,7 +1322,7 @@ function listenToAllChats() {
         isNewMessage &&
         latestMsg &&
         latestMsg.from !== state.currentUser.uid &&
-        (!state.selectedUser || state.selectedUser.uid !== latestMsg.from)
+        (!state.selectedUser || getChatId(state.currentUser.uid, state.selectedUser.uid) !== chatId)
       ) {
         showToastNotification(state.users[latestMsg.from], latestMsg);
       }
