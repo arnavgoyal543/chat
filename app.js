@@ -327,17 +327,19 @@ function createUserElement(uid, user) {
 }
 
 function selectUser(uid, user) {
-  // Clean up previous chat
-  if (state.selectedUser) {
-    cleanupChatListeners();
-  }
-
   state.selectedUser = { uid, ...user };
 
   updateChatHeader();
   showChatInterface();
-  loadMessages();
+  // Do NOT call loadMessages() here, let listenToAllChats handle rendering
   setupTypingListener();
+
+  // Render messages for the selected chat if already loaded
+  const chatId = getChatId(state.currentUser.uid, uid);
+  if (state.messages[chatId]) {
+    renderMessages(state.messages[chatId]);
+    markMessagesAsSeen();
+  }
 }
 
 function updateChatHeader() {
