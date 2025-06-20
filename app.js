@@ -362,7 +362,9 @@ function showChatInterface() {
 }
 
 // Message management
-function loadMessages() {
+const MESSAGE_LIMIT = 50; // Show only 50 recent messages by default
+
+function loadMessages(showAll = false) {
   if (!state.currentUser || !state.selectedUser) return;
 
   const chatId = getChatId(state.currentUser.uid, state.selectedUser.uid);
@@ -376,34 +378,8 @@ function loadMessages() {
   // Set up new listener
   const listener = onValue(messagesRef, (snapshot) => {
     const messages = snapshot.val() || {};
-    const previousMessages = state.messages[chatId] || {};
-    const isNewMessage = Object.keys(messages).length > Object.keys(previousMessages).length;
-
-    // Find the latest message
-    let latestMsg = null;
-    let latestKey = null;
-    Object.entries(messages).forEach(([key, msg]) => {
-      if (!latestMsg || (msg.timestamp > latestMsg.timestamp)) {
-        latestMsg = msg;
-        latestKey = key;
-      }
-    });
-
-    // Show toast if:
-    // - There is a new message
-    // - The message is from the other user
-    // - The chat is NOT currently open
-    if (
-      isNewMessage &&
-      latestMsg &&
-      latestMsg.from !== state.currentUser.uid &&
-      (!state.selectedUser || state.selectedUser.uid !== latestMsg.from)
-    ) {
-      showToastNotification(state.users[latestMsg.from], latestMsg);
-    }
-
     state.messages[chatId] = messages;
-    renderMessages(messages);
+    renderMessages(messages, showAll);
     markMessagesAsSeen();
   }, (error) => {
     console.error('Error loading messages:', error);
@@ -413,7 +389,7 @@ function loadMessages() {
   state.messageListeners[chatId] = listener;
 }
 
-function renderMessages(messages) {
+function renderMessages(messages, showAll = false) {
   if (!elements.messagesList) return;
 
   elements.messagesList.innerHTML = '';
@@ -421,10 +397,36 @@ function renderMessages(messages) {
   const sortedMessages = Object.entries(messages)
     .sort(([, a], [, b]) => a.timestamp - b.timestamp);
 
-  sortedMessages.forEach(([messageId, message]) => {
+  let displayMessages = sortedMessages;
+  let showLoadMore = false;
+
+  if (!showAll && sortedMessages.length > MESSAGE_LIMIT) {
+    displayMessages = sortedMessages.slice(-MESSAGE_LIMIT);
+    showLoadMore = true;
+  }
+
+  // Add Load More button if needed
+  if (showLoadMore) {
+    const loadMoreDiv = document.createElement('div');
+    loadMoreDiv.className = 'load-more-messages';
+    loadMoreDiv.innerHTML = `<button id="loadMoreBtn" class="load-more-btn">Load previous messages</button>`;
+    elements.messagesList.appendChild(loadMoreDiv);
+
+    // Attach event
+    document.getElementById('loadMoreBtn').onclick = () => {
+      renderMessages(messages, true);
+    };
+  }
+
+  displayMessages.forEach(([messageId, message]) => {
     const messageElement = createMessageElement(messageId, message);
     elements.messagesList.appendChild(messageElement);
   });
+
+  // Scroll to bottom on new messages (only if not showing all)
+  if (!showAll) {
+    elements.messagesList.scrollTop = elements.messagesList.scrollHeight;
+  }
 }
 
 function createMessageElement(messageId, message) {
