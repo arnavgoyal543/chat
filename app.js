@@ -342,13 +342,6 @@ function selectUser(uid, user) {
   // Do NOT call loadMessages() here, let listenToAllChats handle rendering
   setupTypingListener();
 
-  // Render messages for the selected chat if already loaded
-  const chatId = getChatId(state.currentUser.uid, uid);
-  if (state.messages[chatId]) {
-    renderMessages(state.messages[chatId]);
-    markMessagesAsSeen();
-  }
-
   // Always load the latest messages with pagination
   loadMessages(true);
 }
@@ -548,16 +541,26 @@ function loadMessages(initial = true) {
   state.messageListeners[chatId] = listener;
 }
 
-// In selectUser, always call loadMessages(true)
-function selectUser(uid, user) {
-  state.selectedUser = { uid, ...user };
+function renderMessages(messages, prepend = false) {
+  if (!elements.messagesList) return;
 
-  updateChatHeader();
-  showChatInterface();
-  setupTypingListener();
+  const sortedMessages = Object.entries(messages)
+    .sort(([, a], [, b]) => a.timestamp - b.timestamp);
 
-  // Always load the latest messages with pagination
-  loadMessages(true);
+  if (!prepend) {
+    elements.messagesList.innerHTML = '';
+  }
+  sortedMessages.forEach(([messageId, message]) => {
+    // If prepend, only add messages not already in DOM
+    if (prepend && document.getElementById(`msg-${messageId}`)) return;
+    const messageElement = createMessageElement(messageId, message);
+    messageElement.id = `msg-${messageId}`;
+    if (prepend) {
+      elements.messagesList.insertBefore(messageElement, elements.messagesList.firstChild);
+    } else {
+      elements.messagesList.appendChild(messageElement);
+    }
+  });
 }
 
 // Add reply state management
@@ -1152,132 +1155,3 @@ function setupEventListeners() {
     }
   });
 }
-
-// 2. Debounce typing indicator updates
-let typingTimeout;
-let typingDebounce;
-async function handleTyping() {
-  if (!state.currentUser || !state.selectedUser) return;
-
-  // Debounce typing updates to 1 per 500ms
-  if (typingDebounce) clearTimeout(typingDebounce);
-  typingDebounce = setTimeout(async () => {
-    try {
-      const typingRef = ref(database, `typing/${state.messagePagination.chatId}/${state.currentUser.uid}`);
-      set(typingRef, true);
-      
-      // Remove typing indicator after 1 second of inactivity
-      if (typingTimeout) clearTimeout(typingTimeout);
-      typingTimeout = setTimeout(() => {
-        set(typingRef, false);
-      }, 1000);
-    } catch (error) {
-      console.error('Error updating typing status:', error);
-    }
-  }, 500);
-}
-
-// Stop typing indicator
-async function stopTyping() {
-  if (!state.currentUser || !state.selectedUser) return;
-  
-  try {
-    const typingRef = ref(database, `typing/${state.messagePagination.chatId}/${state.currentUser.uid}`);
-    await set(typingRef, false);
-  } catch (error) {
-    console.error('Error stopping typing indicator:', error);
-  }
-}
-
-// Mark messages as seen
-async function markMessagesAsSeen() {
-  if (!state.currentUser || !state.selectedUser) return;
-  
-  try {
-    const chatId = getChatId(state.currentUser.uid, state.selectedUser.uid);
-    const messages = state.messages[chatId] || {};
-    const unseenMessages = Object.values(messages).filter(msg => msg.from !== state.currentUser.uid && !msg.seen);
-    
-    if (unseenMessages.length === 0) return;
-    
-    const updates = {};
-    unseenMessages.forEach(msg => {
-      updates[`messages/${chatId}/${msg.id}/seen`] = true;
-    });
-    
-    await update(ref(database), updates);
-    console.log('Messages marked as seen:', unseenMessages.length);
-  } catch (error) {
-    console.error('Error marking messages as seen:', error);
-  }
-}
-
-// Create message element
-function createMessageElement(messageId, message) {
-  const isOwnMessage = message.from === state.currentUser.uid;
-  const messageClass = isOwnMessage ? 'message-outgoing' : 'message-incoming';
-  
-  // Create message div
-  const messageDiv = document.createElement('div');
-  messageDiv.className = `message ${messageClass}`;
-  messageDiv.dataset.id = messageId;
-  
-  // Message content
-  let content = '';
-  if (message.text) {
-    content += `<div class="message-text">${escapeHtml(message.text)}</div>`;
-  }
-  
-  // Media content
-  if (message.mediaURL) {
-    if (message.type === 'voice') {
-      content += `
-        <div class="message-media voice-message">
-          <audio controls>
-            <source src="${message.mediaURL}" type="audio/webm">
-            Your browser does not support the audio element.
-          </audio>
-          <span class="voice-duration">Voice note</span>
-        </div>
-      `;
-    } else if (message.mediaURL.startsWith('data:image/') || /\.(jpg|jpeg|png|gif|webp)$/i.test(message.mediaURL)) {
-      content += `
-        <div class="message-media">
-          <img src="${message.mediaURL}" alt="Shared image" class="message-image">
-        </div>
-      `;
-    }
-  }
-  
-  // Replying message
-  if (message.replyTo) {
-    const replyToUser = state.users[message.replyTo.from];
-    const replyToName = replyToUser ? replyToUser.name : 'User';
-    
-    let replyContent = '';
-    if (message.replyTo.text) {
-      replyContent += `<div class="reply-text">${escapeHtml(message.replyTo.text)}</div>`;
-    }
-    if (message.replyTo.mediaURL) {
-      replyContent += `
-        <div class="reply-media">
-          <img src="${message.replyTo.mediaURL}" alt="Shared image" class="reply-image">
-        </div>
-      `;
-    }
-    
-    content = `
-      <div class="reply-preview">
-        <div class="reply-to">Replying to ${replyToName}</div>
-        ${replyContent}
-      </div>
-      ${content}
-    `;
-  }
-  
-  messageDiv.innerHTML = content;
-  
-  return messageDiv;
-}
-
-// ...existing code...
