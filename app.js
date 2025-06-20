@@ -681,6 +681,58 @@ function cleanupChatListeners() {
   }
 }
 
+// Add this function anywhere before setupEventListeners is called
+
+async function sendMessage() {
+  const messageText = elements.messageText.value.trim();
+  if ((!messageText && !state.replyingTo) || !state.currentUser || !state.selectedUser) return;
+
+  try {
+    elements.sendBtn.classList.add('btn-loading');
+
+    const chatId = getChatId(state.currentUser.uid, state.selectedUser.uid);
+    const messagesRef = ref(database, `messages/${chatId}`);
+
+    const messageData = {
+      from: state.currentUser.uid,
+      to: state.selectedUser.uid,
+      timestamp: serverTimestamp(),
+      seen: false
+    };
+
+    if (state.replyingTo) {
+      const replyData = {
+        messageId: state.replyingTo.messageId,
+        from: state.replyingTo.from
+      };
+      if (state.replyingTo.text) replyData.text = state.replyingTo.text;
+      if (state.replyingTo.mediaURL) {
+        replyData.mediaURL = state.replyingTo.mediaURL;
+        replyData.type = state.replyingTo.type || 'image';
+      }
+      messageData.replyTo = replyData;
+    }
+
+    if (messageText) {
+      messageData.text = messageText;
+    }
+
+    await push(messagesRef, messageData).catch(console.error);
+
+    elements.messageText.value = '';
+    state.replyingTo = null;
+    updateReplyUI();
+
+    await stopTyping().catch(console.error);
+
+  } catch (error) {
+    console.error('Error sending message:', error);
+    showError('Failed to send message. Please try again.', null);
+  } finally {
+    elements.sendBtn.classList.remove('btn-loading');
+  }
+}
+
 // Event listeners setup
 function setupEventListeners() {
   // Authentication events
