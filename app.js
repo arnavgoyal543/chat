@@ -1,4 +1,4 @@
-// Main application logic for real-time chat app
+// Main application logic for real-time chat appMore actions
 
 import { auth, database, googleProvider } from './firebase-config.js';
 import { 
@@ -35,15 +35,7 @@ const state = {
   replyingTo: null,
   mediaRecorder: null,
   audioChunks: [],
-  isRecording: false,
-
-  // Add these variables to state for pagination
-  messagePagination: {
-    limit: 50,
-    loaded: 0,
-    oldestKey: null,
-    chatId: null
-  }
+  isRecording: false
 };
 
 // DOM elements
@@ -113,13 +105,13 @@ async function signInWithGoogle() {
   try {
     elements.loginBtn.classList.add('btn-loading');
     elements.loginError.classList.add('hidden');
-    
+
     console.log('Attempting Google Sign-In...');
     console.log('Auth object:', auth);
     console.log('Google Provider:', googleProvider);
     console.log('Current domain:', window.location.hostname);
     console.log('Current URL:', window.location.href);
-    
+
     // Try popup first, fallback to redirect for localhost issues
     let result;
     try {
@@ -129,7 +121,7 @@ async function signInWithGoogle() {
         console.log('Popup failed due to unauthorized domain, trying redirect...');
         // Import redirect methods
         const { signInWithRedirect, getRedirectResult } = await import('https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js');
-        
+
         // Check if we're returning from a redirect
         const redirectResult = await getRedirectResult(auth);
         if (redirectResult) {
@@ -144,13 +136,13 @@ async function signInWithGoogle() {
       }
     }
     const user = result.user;
-    
+
     console.log('Sign-in successful! User:', {
       uid: user.uid,
       name: user.displayName,
       email: user.email
     });
-    
+
     // Store user data in database
     await set(ref(database, `users/${user.uid}`), {
       name: user.displayName,
@@ -159,7 +151,7 @@ async function signInWithGoogle() {
       lastSeen: serverTimestamp(),
       online: true
     });
-    
+
     console.log('User data stored in database successfully');
   } catch (error) {
     console.error('Sign-in error:', error);
@@ -168,9 +160,9 @@ async function signInWithGoogle() {
       message: error.message,
       customData: error.customData
     });
-    
+
     let errorMessage = 'Failed to sign in. ';
-    
+
     switch (error.code) {
       case 'auth/popup-blocked':
         errorMessage += 'Popup was blocked by browser. Please allow popups for this site.';
@@ -191,7 +183,7 @@ async function signInWithGoogle() {
         errorMessage += `Error: ${error.message}`;
         break;
     }
-    
+
     showError(errorMessage);
   } finally {
     elements.loginBtn.classList.remove('btn-loading');
@@ -205,7 +197,7 @@ async function signOutUser() {
       await set(ref(database, `users/${state.currentUser.uid}/online`), false);
       await set(ref(database, `users/${state.currentUser.uid}/lastSeen`), serverTimestamp());
     }
-    
+
     await signOut(auth);
     console.log('User signed out successfully');
   } catch (error) {
@@ -219,14 +211,14 @@ function setupPresenceSystem(user) {
   const userStatusRef = ref(database, `users/${user.uid}/online`);
   const userLastSeenRef = ref(database, `users/${user.uid}/lastSeen`);
   const connectedRef = ref(database, '.info/connected');
-  
+
   // Monitor connection status
   onValue(connectedRef, (snapshot) => {
     if (snapshot.val() === true) {
       // User is online
       set(userStatusRef, true);
       set(userLastSeenRef, serverTimestamp());
-      
+
       // Set up disconnect handlers
       onDisconnect(userStatusRef).set(false);
       onDisconnect(userLastSeenRef).set(serverTimestamp());
@@ -238,12 +230,12 @@ function setupPresenceSystem(user) {
 function loadUsers() {
   console.log('Loading users from database...');
   const usersRef = ref(database, 'users');
-  
+
   onValue(usersRef, (snapshot) => {
     const users = snapshot.val() || {};
     console.log('Users data from database:', users);
     console.log('Number of users found:', Object.keys(users).length);
-    
+
     state.users = users;
     listenToAllChats(); // <-- Add this line
     renderUsersList();
@@ -262,12 +254,12 @@ function renderUsersList() {
   console.log('Users list element:', elements.usersList);
   console.log('Current user:', state.currentUser?.uid);
   console.log('All users:', state.users);
-  
+
   if (!elements.usersList) {
     console.error('Users list element not found!');
     return;
   }
-  
+
   elements.usersList.innerHTML = '';
 
   const otherUsers = Object.entries(state.users).filter(([uid, user]) => {
@@ -286,7 +278,7 @@ function renderUsersList() {
     fragment.appendChild(userElement);
   });
   elements.usersList.appendChild(fragment);
-  
+
   console.log('Users list rendered successfully');
 }
 function getUnreadCountForUser(uid) {
@@ -335,28 +327,38 @@ function createUserElement(uid, user) {
 }
 
 function selectUser(uid, user) {
+  // Clean up previous chat
+  if (state.selectedUser) {
+    cleanupChatListeners();
+  }
+
   state.selectedUser = { uid, ...user };
 
   updateChatHeader();
   showChatInterface();
+  loadMessages();
   // Do NOT call loadMessages() here, let listenToAllChats handle rendering
   setupTypingListener();
 
-  // Always load the latest messages with pagination
-  loadMessages(true);
+  // Render messages for the selected chat if already loaded
+  const chatId = getChatId(state.currentUser.uid, uid);
+  if (state.messages[chatId]) {
+    renderMessages(state.messages[chatId]);
+    markMessagesAsSeen();
+  }
 }
 
 function updateChatHeader() {
   if (!state.selectedUser) return;
-  
+
   const user = state.selectedUser;
   const isOnline = user.online;
-  
+
   elements.chatUserName.textContent = user.name;
   elements.chatUserPhoto.src = user.photoURL || '/default-avatar.png';
   elements.chatUserStatus.className = `w-2 h-2 rounded-full mr-2 ${isOnline ? 'status-online' : 'status-offline'}`;
   elements.chatUserStatusText.textContent = isOnline ? 'Online' : 'Offline';
-  
+
   elements.chatHeader.classList.remove('hidden');
 }
 
@@ -366,87 +368,50 @@ function showChatInterface() {
   elements.messageInput.classList.remove('hidden');
 }
 
-// Update renderMessages to prepend messages if loading more
-
-// Add Load More button logic
-function addLoadMoreButton() {
-  let btn = document.getElementById('loadMoreBtn');
-  if (!btn) {
-    btn = document.createElement('button');
-    btn.id = 'loadMoreBtn';
-    btn.className = 'load-more-btn';
-    btn.textContent = 'Load More';
-    btn.onclick = loadMoreMessages;
-    elements.messagesList.parentNode.insertBefore(btn, elements.messagesList);
-  }
-  btn.classList.remove('hidden');
-}
-
-function removeLoadMoreButton() {
-  const btn = document.getElementById('loadMoreBtn');
-  if (btn) btn.classList.add('hidden');
-}
-
-// Load more messages handler
-function loadMoreMessages() {
-  loadMessages(false);
-}
-
-// Modified loadMessages for pagination
-function loadMessages(initial = true) {
+// Message management
+function loadMessages() {
   if (!state.currentUser || !state.selectedUser) return;
 
   const chatId = getChatId(state.currentUser.uid, state.selectedUser.uid);
-  state.messagePagination.chatId = chatId;
-  let messagesQuery;
-  let limit = state.messagePagination.limit;
-
-  if (initial) {
-    messagesQuery = query(ref(database, `messages/${chatId}`), limitToLast(limit));
-  } else {
-    // Load more: fetch messages older than oldestKey
-    messagesQuery = query(
-      ref(database, `messages/${chatId}`),
-      orderByChild('timestamp'),
-      endAt(state.messages[chatId][state.messagePagination.oldestKey].timestamp - 1),
-      limitToLast(limit)
-    );
-  }
+  // Limit to last 50 messages for performance
+  const messagesRef = query(ref(database, `messages/${chatId}`), limitToLast(50));
 
   // Clean up existing listener
   if (state.messageListeners[chatId]) {
-    off(ref(database, `messages/${chatId}`), state.messageListeners[chatId]);
+    off(messagesRef, state.messageListeners[chatId]);
   }
 
   // Set up new listener
-  const listener = onValue(messagesQuery, (snapshot) => {
+  const listener = onValue(messagesRef, (snapshot) => {
     const messages = snapshot.val() || {};
-    const keys = Object.keys(messages);
-    if (keys.length === 0) {
-      removeLoadMoreButton();
-      return;
+    const previousMessages = state.messages[chatId] || {};
+    const isNewMessage = Object.keys(messages).length > Object.keys(previousMessages).length;
+
+    // Find the latest message
+    let latestMsg = null;
+    let latestKey = null;
+    Object.entries(messages).forEach(([key, msg]) => {
+      if (!latestMsg || (msg.timestamp > latestMsg.timestamp)) {
+        latestMsg = msg;
+        latestKey = key;
+      }
+    });
+
+    // Show toast if:
+    // - There is a new message
+    // - The message is from the other user
+    // - The chat is NOT currently open
+    if (
+      isNewMessage &&
+      latestMsg &&
+      latestMsg.from !== state.currentUser.uid &&
+      (!state.selectedUser || state.selectedUser.uid !== latestMsg.from)
+    ) {
+      showToastNotification(state.users[latestMsg.from], latestMsg);
     }
 
-    // Save oldest key for pagination
-    const sortedKeys = keys.sort((a, b) => messages[a].timestamp - messages[b].timestamp);
-    state.messagePagination.oldestKey = sortedKeys[0];
-    state.messagePagination.loaded = keys.length;
-
-    // If less than limit, hide load more
-    if (keys.length < limit) {
-      removeLoadMoreButton();
-    } else {
-      addLoadMoreButton();
-    }
-
-    // Merge messages for "load more"
-    if (!initial && state.messages[chatId]) {
-      state.messages[chatId] = { ...messages, ...state.messages[chatId] };
-      renderMessages(messages, true); // Prepend
-    } else {
-      state.messages[chatId] = messages;
-      renderMessages(messages);
-    }
+    state.messages[chatId] = messages;
+    renderMessages(messages);
     markMessagesAsSeen().catch(console.error);
   }, (error) => {
     console.error('Error loading messages:', error);
@@ -456,480 +421,236 @@ function loadMessages(initial = true) {
   state.messageListeners[chatId] = listener;
 }
 
-function renderMessages(messages, prepend = false) {
+function renderMessages(messages) {
   if (!elements.messagesList) return;
 
+  // Only append new messages if possible
   const sortedMessages = Object.entries(messages)
     .sort(([, a], [, b]) => a.timestamp - b.timestamp);
 
-  if (!prepend) {
-    elements.messagesList.innerHTML = '';
-  }
+  // If already rendered, only append new
+  if (elements.messagesList.childElementCount === sortedMessages.length) return;
+
+  // Otherwise, clear and render all (fallback)
+  elements.messagesList.innerHTML = '';
   sortedMessages.forEach(([messageId, message]) => {
-    // If prepend, only add messages not already in DOM
-    if (prepend && document.getElementById(`msg-${messageId}`)) return;
     const messageElement = createMessageElement(messageId, message);
-    messageElement.id = `msg-${messageId}`;
-    if (prepend) {
-      elements.messagesList.insertBefore(messageElement, elements.messagesList.firstChild);
-    } else {
-      elements.messagesList.appendChild(messageElement);
-    }
+    elements.messagesList.appendChild(messageElement);
   });
 }
 
-// Add reply state management
-function handleReplyClick(messageId, message) {
-  state.replyingTo = {
-    messageId,
-    text: message.text,
-    from: message.from,
-    type: message.type,
-    mediaURL: message.mediaURL
-  };
-  updateReplyUI();
-  elements.messageText.focus();
-}
+function createMessageElement(messageId, message) {
+  const messageDiv = document.createElement('div');
+  const isSent = message.from === state.currentUser.uid;
 
-function updateReplyUI() {
-  const replyPreview = document.getElementById('replyPreview');
-  if (state.replyingTo) {
-    const replyToUser = state.users[state.replyingTo.from];
+  messageDiv.className = `message-bubble ${isSent ? 'message-sent' : 'message-received'}`;
+
+  let content = '';
+
+  // Add reply preview if this message is a reply
+  if (message.replyTo) {
+    const replyToMessage = message.replyTo;
+    const replyToUser = state.users[replyToMessage.from];
     const replyToName = replyToUser ? replyToUser.name : 'User';
-    
+
     let replyContent = '';
-    
+
     // Add text content if exists
-    if (state.replyingTo.text) {
-      replyContent += `<div class="reply-text">${escapeHtml(state.replyingTo.text)}</div>`;
+    if (replyToMessage.text) {
+      replyContent += `<div class="reply-text">${escapeHtml(replyToMessage.text)}</div>`;
     }
-    
+
     // Add media content if exists
-    if (state.replyingTo.mediaURL) {
-      if (state.replyingTo.type === 'voice') {
+    if (replyToMessage.mediaURL) {
+      if (replyToMessage.type === 'voice') {
         replyContent += `
           <div class="reply-media voice-message">
             <audio controls>
-              <source src="${state.replyingTo.mediaURL}" type="audio/webm">
+              <source src="${replyToMessage.mediaURL}" type="audio/webm">
               Your browser does not support the audio element.
             </audio>
             <span class="voice-duration">Voice note</span>
           </div>
         `;
-      } else if (state.replyingTo.mediaURL.startsWith('data:image/') || /\.(jpg|jpeg|png|gif|webp)$/i.test(state.replyingTo.mediaURL)) {
+      } else if (replyToMessage.mediaURL.startsWith('data:image/') || /\.(jpg|jpeg|png|gif|webp)$/i.test(replyToMessage.mediaURL)) {
         replyContent += `
           <div class="reply-media">
-            <img src="${state.replyingTo.mediaURL}" alt="Shared image" class="reply-image">
+            <img src="${replyToMessage.mediaURL}" alt="Shared image" class="reply-image">
           </div>
         `;
       }
     }
-    
-    replyPreview.innerHTML = `
+
+    content += `
       <div class="reply-preview">
         <div class="reply-to">Replying to ${replyToName}</div>
         ${replyContent}
-        <button onclick="cancelReply()" class="cancel-reply">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
-          </svg>
-        </button>
       </div>
     `;
-    replyPreview.classList.remove('hidden');
-  } else {
-    replyPreview.classList.add('hidden');
   }
-}
 
-function cancelReply() {
-  state.replyingTo = null;
-  updateReplyUI();
-}
+  // Handle text content
+  if (message.text) {
+    content += `<div>${escapeHtml(message.text)}</div>`;
+  }
 
-// Add success message function
-function showSuccess(message) {
-    const successDiv = document.createElement('div');
-    successDiv.className = 'success-message';
-    successDiv.textContent = message;
-    
-    document.body.appendChild(successDiv);
-    
-    // Remove after 3 seconds
-    setTimeout(() => {
-        successDiv.remove();
-    }, 3000);
-}
-
-// Emoji picker functionality
-const emojis = [
-  '😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣',
-  '😊', '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰',
-  '😘', '😗', '😙', '😚', '😋', '😛', '😝', '😜',
-  '🤪', '🤨', '🧐', '🤓', '😎', '🤩', '🥳', '😏',
-  '😒', '😞', '😔', '😟', '😕', '🙁', '☹️', '😣',
-  '😖', '😫', '😩', '🥺', '😢', '😭', '😤', '😠',
-  '😡', '🤬', '🤯', '😳', '🥵', '🥶', '😱', '😨',
-  '😰', '😥', '😓', '🤗', '🤔', '🤭', '🤫', '🤥',
-  '😶', '😐', '😑', '😬', '🙄', '😯', '😦', '😧',
-  '😮', '😲', '🥱', '😴', '🤤', '😪', '😵', '🤐',
-  '🥴', '🤢', '🤮', '🤧', '😷', '🤒', '🤕', '🤑',
-  '🤠', '💩', '👻', '👽', '👾', '🤖', '😺', '😸',
-  '🙌', '👏', '👋', '🤙', '👍', '👎', '👊', '✊',
-  '🤛', '🤜', '🤞', '✌️', '🤟', '🤘', '👌', '🙏',
-  '🫶', '🤲', '👐', '✋', '🤚', '🖐️', '🖖', '👈',
-  '👉', '👆', '👇', '☝️', '🖕', '✍️','💓', '💗', 
-  '💖', '💘', '💝', '💞', '💕', '❤️',
-  '🧡', '💛', '💚', '💙', '💜', '🤎', '🖤', '🤍',
-  '💔', '❣️', '💟', '💯', '💢', '💥', '🕳️','✨', 
-  '🌟', '💫', '🌈', '☀️', '🌤️', '⛅', '☁️',
-  '🌧️', '⛈️', '🌩️', '🌨️', '❄️', '🌪️', '🌊', '💧',
-  '🔥', '⚡', '🌙', '🌑', '🌕', '🌍', '🪐', '🛸',
-  '🎉', '🎊', '🎈', '🎂', '🎁', '🎀', '🧸', '🎮',
-  '🎧', '🎤', '📱', '💻', '🖥️', '🕹️', '📸', '📷',
-  '📹', '🎬', '📺', '📻', '📡', '⌚', '⏰', '🕰️',
-  '🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼',
-  '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🦄',
-  '🐔', '🐧', '🐦', '🐤', '🐣', '🦆', '🦅', '🦉',
-  '🐢', '🐍', '🦎', '🦂', '🕷️', '🦕', '🦖', '🐙'
-];
-
-function initializeEmojiPicker() {
-    const emojiPicker = document.getElementById('emojiPicker');
-    const emojiButton = document.getElementById('emojiButton');
-    const messageText = document.getElementById('messageText');
-    
-    // Populate emoji grid
-    const emojiGrid = emojiPicker.querySelector('.emoji-grid');
-    emojis.forEach(emoji => {
-        const emojiItem = document.createElement('button');
-        emojiItem.className = 'emoji-item';
-        emojiItem.textContent = emoji;
-        emojiItem.onclick = () => {
-            messageText.value += emoji;
-            messageText.focus();
-            emojiPicker.classList.add('hidden');
-        };
-        emojiGrid.appendChild(emojiItem);
-    });
-    
-    // Toggle emoji picker
-    emojiButton.onclick = (e) => {
-        e.stopPropagation();
-        emojiPicker.classList.toggle('hidden');
-    };
-    
-    // Close emoji picker when clicking outside
-    document.addEventListener('click', (e) => {
-        if (!emojiPicker.contains(e.target) && e.target !== emojiButton) {
-            emojiPicker.classList.add('hidden');
-        }
-    });
-}
-
-// Dark theme functionality
-function initializeTheme() {
-    const themeToggle = document.getElementById('themeToggle');
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)');
-    
-    // Check for saved theme preference or use system preference
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme) {
-        document.documentElement.setAttribute('data-theme', savedTheme);
+  // Handle media content
+  if (message.mediaURL) {
+    if (message.type === 'voice') {
+      content += `
+        <div class="voice-message">
+          <audio controls>
+            <source src="${message.mediaURL}" type="audio/webm">
+            Your browser does not support the audio element.
+          </audio>
+          <span class="voice-duration">Voice note</span>
+        </div>
+      `;
     } else {
-        document.documentElement.setAttribute('data-theme', prefersDark.matches ? 'dark' : 'light');
+      content += createMediaContent(message.mediaURL);
     }
-    
-    // Toggle theme
-    themeToggle.onclick = () => {
-        const currentTheme = document.documentElement.getAttribute('data-theme');
-        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-        document.documentElement.setAttribute('data-theme', newTheme);
-        localStorage.setItem('theme', newTheme);
-    };
-    
-    // Listen for system theme changes
-    prefersDark.addListener((e) => {
-        if (!localStorage.getItem('theme')) {
-            document.documentElement.setAttribute('data-theme', e.matches ? 'dark' : 'light');
-        }
-    });
-}
-
-// Profile settings functionality
-function initializeProfileSettings() {
-    const profileSettingsBtn = document.getElementById('profileSettingsBtn');
-    const profileSettingsModal = document.getElementById('profileSettingsModal');
-    const closeProfileModal = document.getElementById('closeProfileModal');
-    const cancelProfileEdit = document.getElementById('cancelProfileEdit');
-    const saveProfileEdit = document.getElementById('saveProfileEdit');
-    const displayNameInput = document.getElementById('displayName');
-    
-    // Open modal
-    profileSettingsBtn.onclick = () => {
-        displayNameInput.value = state.currentUser.displayName || '';
-        profileSettingsModal.classList.remove('hidden');
-    };
-    
-    // Close modal
-    const closeModal = () => {
-        profileSettingsModal.classList.add('hidden');
-    };
-    
-    closeProfileModal.onclick = closeModal;
-    cancelProfileEdit.onclick = closeModal;
-    
-    // Save changes
-    saveProfileEdit.onclick = async () => {
-        const newDisplayName = displayNameInput.value.trim();
-        
-        if (!newDisplayName) {
-            showError('Display name cannot be empty', null);
-            return;
-        }
-        
-        try {
-            saveProfileEdit.classList.add('btn-loading');
-            
-            // Update user profile in Firebase Auth
-            await updateProfile(auth.currentUser, {
-                displayName: newDisplayName
-            });
-            
-            // Update user data in Realtime Database
-            const userRef = ref(database, `users/${state.currentUser.uid}`);
-            await update(userRef, {
-                name: newDisplayName
-            });
-            
-            // Update local state
-            state.currentUser.displayName = newDisplayName;
-            elements.currentUserName.textContent = newDisplayName;
-            
-            // Update UI in active chat if it's the current user
-            if (state.selectedUser && state.selectedUser.uid === state.currentUser.uid) {
-                elements.chatUserName.textContent = newDisplayName;
-            }
-            
-            closeModal();
-            showSuccess('Display name updated successfully');
-            
-        } catch (error) {
-            console.error('Error updating display name:', error);
-            showError('Failed to update display name. Please try again.', null);
-        } finally {
-            saveProfileEdit.classList.remove('btn-loading');
-        }
-    };
-}
-
-// Voice recording functionality
-async function initializeVoiceRecording() {
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    state.mediaRecorder = new MediaRecorder(stream);
-    
-    state.mediaRecorder.ondataavailable = (event) => {
-      if (event.data.size > 0) {
-        state.audioChunks.push(event.data);
-      }
-    };
-    
-    state.mediaRecorder.onstop = async () => {
-      const audioBlob = new Blob(state.audioChunks, { type: 'audio/webm' });
-      const audioUrl = URL.createObjectURL(audioBlob);
-      
-      // Convert blob to base64
-      const reader = new FileReader();
-      reader.readAsDataURL(audioBlob);
-      reader.onloadend = async () => {
-        const base64Audio = reader.result;
-        
-        // Send the voice note
-        await sendVoiceNote(base64Audio);
-        
-        // Clean up
-        state.audioChunks = [];
-        URL.revokeObjectURL(audioUrl);
-      };
-    };
-    
-    // Set up voice button click handler
-    elements.voiceButton.onclick = toggleRecording;
-    
-  } catch (error) {
-    console.error('Error initializing voice recording:', error);
-    showError('Failed to initialize voice recording. Please check microphone permissions.', null);
   }
+
+  // Add timestamp and status
+  const timestamp = new Date(message.timestamp).toLocaleTimeString([], { 
+    hour: '2-digit', 
+    minute: '2-digit' 
+  });
+
+  const statusClass = isSent ? '' : 'received';
+  const seenIndicator = isSent && message.seen ? '<span class="seen-indicator">✓✓</span>' : '';
+
+  content += `
+    <div class="message-status ${statusClass}">
+      <span class="message-timestamp">${timestamp}</span>
+      ${seenIndicator}
+    </div>
+  `;
+
+  messageDiv.innerHTML = content;
+
+  // Add reply button
+  const replyButton = document.createElement('button');
+  replyButton.className = 'reply-button';
+  replyButton.innerHTML = `
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+      <path fill-rule="evenodd" d="M7.707 3.293a1 1 0 010 1.414L5.414 7H11a7 7 0 007 7v2a1 1 0 11-2 0v-2a5 5 0 00-5-5H5.414l2.293 2.293a1 1 0 11-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"/>
+    </svg>
+  `;
+  replyButton.onclick = (e) => {
+    e.stopPropagation();
+    handleReplyClick(messageId, message);
+  };
+  messageDiv.appendChild(replyButton);
+
+  return messageDiv;
 }
 
-function toggleRecording() {
-  if (!state.mediaRecorder) {
-    showError('Voice recording not initialized. Please refresh the page.', null);
-    return;
-  }
-  
-  if (state.isRecording) {
-    stopRecording();
+// 1. Lazy load images in createMediaContent
+function createMediaContent(mediaURL) {
+  const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(mediaURL);
+  const isAudio = /\.(mp3|wav|ogg|m4a)$/i.test(mediaURL);
+  const isBase64Image = mediaURL.startsWith('data:image/');
+  const isBase64Audio = mediaURL.startsWith('data:audio/');
+
+  if (isImage || isBase64Image) {
+    return `
+      <div class="message-media">
+        <img src="${mediaURL}" alt="Shared image" loading="lazy" onerror="this.alt='Failed to load image'; this.style.display='none';">
+      </div>
+    `;
+  } else if (isAudio || isBase64Audio) {
+    return `
+      <div class="message-media">
+        <audio controls>
+          <source src="${mediaURL}" type="audio/mpeg">
+          Your browser does not support the audio element.
+        </audio>
+      </div>
+    `;
   } else {
-    startRecording();
+    // Fallback for other URLs
+    return `
+      <div class="message-media">
+        <a href="${mediaURL}" target="_blank" rel="noopener noreferrer" class="text-blue-500 underline">
+          ${mediaURL}
+        </a>
+      </div>
+    `;
   }
 }
 
-function startRecording() {
-  if (!state.currentUser || !state.selectedUser) {
-    showError('Please select a user to send voice note to.', null);
-    return;
-  }
-  
-  state.audioChunks = [];
-  state.mediaRecorder.start();
-  state.isRecording = true;
-  
-  // Update UI
-  elements.voiceButton.classList.add('recording');
-  elements.voiceButton.innerHTML = `
-    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor">
-      <circle cx="10" cy="10" r="6" fill="currentColor"/>
-    </svg>
-  `;
-  
-  // Show recording indicator
-  const recordingIndicator = document.createElement('div');
-  recordingIndicator.id = 'recordingIndicator';
-  recordingIndicator.className = 'recording-indicator';
-  recordingIndicator.innerHTML = 'Recording...';
-  elements.messageInput.insertBefore(recordingIndicator, elements.messageInput.firstChild);
-}
-
-function stopRecording() {
-  if (!state.isRecording) return;
-  
-  state.mediaRecorder.stop();
-  state.isRecording = false;
-  
-  // Update UI
-  elements.voiceButton.classList.remove('recording');
-  elements.voiceButton.innerHTML = `
-    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-600 dark:text-gray-300" viewBox="0 0 20 20" fill="currentColor">
-      <path fill-rule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 005 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clip-rule="evenodd" />
-    </svg>
-  `;
-  
-  // Remove recording indicator
-  const recordingIndicator = document.getElementById('recordingIndicator');
-  if (recordingIndicator) {
-    recordingIndicator.remove();
-  }
-}
-
-async function sendVoiceNote(audioData) {
+// 2. Debounce typing indicator updates
+let typingTimeout;
+let typingDebounce;
+async function handleTyping() {
   if (!state.currentUser || !state.selectedUser) return;
-  
-  try {
-    elements.sendBtn.classList.add('btn-loading');
-    
-    const chatId = getChatId(state.currentUser.uid, state.selectedUser.uid);
-    const messagesRef = ref(database, `messages/${chatId}`);
-    
-    const messageData = {
-      from: state.currentUser.uid,
-      to: state.selectedUser.uid,
-      timestamp: serverTimestamp(),
-      seen: false,
-      mediaURL: audioData,
-      type: 'voice'
-    };
-    
-    // Add reply data if there's a reply to a message
-    if (state.replyingTo) {
-      const replyData = {
-        messageId: state.replyingTo.messageId,
-        from: state.replyingTo.from
-      };
-      
-      // Only add text if it exists
-      if (state.replyingTo.text) {
-        replyData.text = state.replyingTo.text;
-      }
-      
-      // Only add media-related fields if it's a media message
-      if (state.replyingTo.mediaURL) {
-        replyData.mediaURL = state.replyingTo.mediaURL;
-        replyData.type = state.replyingTo.type || 'image';
-      }
-      
-      messageData.replyTo = replyData;
-    }
-    
-    await push(messagesRef, messageData);
-    
-    // Clear reply state
-    state.replyingTo = null;
-    updateReplyUI();
-    
-    // Stop typing indicator
-    await stopTyping();
-    
-  } catch (error) {
-    console.error('Error sending voice note:', error);
-    showError('Failed to send voice note. Please try again.', null);
-  } finally {
-    elements.sendBtn.classList.remove('btn-loading');
-  }
-}
 
-// Update initializeApp function
-function initializeApp() {
+  // Debounce typing updates to 1 per 500ms
+  if (typingDebounce) clearTimeout(typingDebounce);
+  typingDebounce = setTimeout(async () => {
     try {
-        initializeElements();
-        setupEventListeners();
-        initializeEmojiPicker();
-        initializeTheme();
-        initializeProfileSettings();
-        initializeVoiceRecording();
-        console.log('Chat app initialized successfully');
+      const chatId = getChatId(state.currentUser.uid, state.selectedUser.uid);
+      const typingRef = ref(database, `typing/${chatId}/${state.currentUser.uid}`);
+      await set(typingRef, {
+        typing: true,
+        timestamp: serverTimestamp()
+      }).catch(console.error);
+
+      if (typingTimeout) clearTimeout(typingTimeout);
+      typingTimeout = setTimeout(async () => {
+        await stopTyping().catch(console.error);
+      }, 3000);
     } catch (error) {
-        console.error('Error initializing app:', error);
-        showError('Failed to initialize app. Please refresh the page.');
+      console.error('Error setting typing status:', error);
     }
+  }, 500);
 }
 
-// Test function to add a sample user (for debugging)
-window.addTestUser = async function() {
-  if (!state.currentUser) {
-    console.log('Please sign in first');
-    return;
-  }
-  
+async function stopTyping() {
+  if (!state.currentUser || !state.selectedUser) return;
+
   try {
-    await set(ref(database, 'users/test-user-123'), {
-      name: 'Test User',
-      email: 'test@example.com',
-      photoURL: 'https://via.placeholder.com/50',
-      online: true,
-      lastSeen: serverTimestamp()
-    });
-    console.log('Test user added successfully');
+    const chatId = getChatId(state.currentUser.uid, state.selectedUser.uid);
+    const typingRef = ref(database, `typing/${chatId}/${state.currentUser.uid}`);
+
+    await set(typingRef, null);
+
+    if (typingTimeout) {
+      clearTimeout(typingTimeout);
+      typingTimeout = null;
+    }
+
   } catch (error) {
-    console.error('Error adding test user:', error);
+    console.error('Error removing typing status:', error);
   }
-};
+}
 
-// Expose debugging functions
-window.debugChat = {
-  state: () => state,
-  users: () => state.users,
-  currentUser: () => state.currentUser,
-  reloadUsers: loadUsers,
-  addTestUser: window.addTestUser
-};
+function setupTypingListener() {
+  if (!state.currentUser || !state.selectedUser) return;
 
-// Start the application when DOM is loaded
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initializeApp);
-} else {
-  initializeApp();
+  const chatId = getChatId(state.currentUser.uid, state.selectedUser.uid);
+  const typingRef = ref(database, `typing/${chatId}/${state.selectedUser.uid}`);
+
+  // Clean up existing listener
+  if (state.typingListeners[chatId]) {
+    off(typingRef, state.typingListeners[chatId]);
+  }
+
+  // Set up new listener
+  const listener = onValue(typingRef, (snapshot) => {
+    const typingData = snapshot.val();
+    const isTyping = typingData && typingData.typing;
+
+    if (isTyping) {
+      elements.typingIndicator.innerHTML = `<span class="typing-dots">${state.selectedUser.name} is typing</span>`;
+      elements.typingIndicator.classList.remove('hidden');
+    } else {
+      elements.typingIndicator.classList.add('hidden');
+    }
+  });
+
+  state.typingListeners[chatId] = listener;
 }
 
 // Utility functions
@@ -1019,7 +740,7 @@ function setupEventListeners() {
   // Authentication events
   elements.loginBtn.addEventListener('click', signInWithGoogle);
   elements.logoutBtn.addEventListener('click', signOutUser);
-  
+
   // Message events
   elements.sendBtn.addEventListener('click', sendMessage);
   elements.messageText.addEventListener('keypress', (e) => {
@@ -1028,48 +749,629 @@ function setupEventListeners() {
       sendMessage();
     }
   });
-  function handleTyping() {
-  // Example: set typing indicator in database or UI
-  // You can implement your typing logic here
-}
+
   // Typing indicator events
   elements.messageText.addEventListener('input', handleTyping);
   elements.messageText.addEventListener('blur', stopTyping);
-  
+
   // Authentication state changes
   onAuthStateChanged(auth, (user) => {
     if (user) {
       state.currentUser = user;
-      
+
       // Update UI
       elements.currentUserName.textContent = user.displayName;
       elements.currentUserPhoto.src = user.photoURL;
-      
+
       // Show chat interface
       elements.loginSection.classList.add('hidden');
       elements.chatSection.classList.remove('hidden');
-      
+
       // Setup presence and load data
       setupPresenceSystem(user);
       loadUsers();
-      
+
     } else {
       state.currentUser = null;
       state.selectedUser = null;
-      
+
       // Clean up listeners
       cleanupChatListeners();
-      
+
       // Show login interface
       elements.chatSection.classList.add('hidden');
       elements.loginSection.classList.remove('hidden');
     }
   });
-  
+
   // Handle page unload
   window.addEventListener('beforeunload', async () => {
     if (state.currentUser) {
       await stopTyping();
     }
   });
+}
+
+// Emoji picker functionality
+const emojis = [
+  '😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣',
+  '😊', '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰',
+  '😘', '😗', '😙', '😚', '😋', '😛', '😝', '😜',
+  '🤪', '🤨', '🧐', '🤓', '😎', '🤩', '🥳', '😏',
+  '😒', '😞', '😔', '😟', '😕', '🙁', '☹️', '😣',
+  '😖', '😫', '😩', '🥺', '😢', '😭', '😤', '😠',
+  '😡', '🤬', '🤯', '😳', '🥵', '🥶', '😱', '😨',
+  '😰', '😥', '😓', '🤗', '🤔', '🤭', '🤫', '🤥',
+  '😶', '😐', '😑', '😬', '🙄', '😯', '😦', '😧',
+  '😮', '😲', '🥱', '😴', '🤤', '😪', '😵', '🤐',
+  '🥴', '🤢', '🤮', '🤧', '😷', '🤒', '🤕', '🤑',
+  '🤠', '💩', '👻', '👽', '👾', '🤖', '😺', '😸',
+  '🙌', '👏', '👋', '🤙', '👍', '👎', '👊', '✊',
+  '🤛', '🤜', '🤞', '✌️', '🤟', '🤘', '👌', '🙏',
+  '🫶', '🤲', '👐', '✋', '🤚', '🖐️', '🖖', '👈',
+  '👉', '👆', '👇', '☝️', '🖕', '✍️','💓', '💗', 
+  '💖', '💘', '💝', '💞', '💕', '❤️',
+  '🧡', '💛', '💚', '💙', '💜', '🤎', '🖤', '🤍',
+  '💔', '❣️', '💟', '💯', '💢', '💥', '🕳️','✨', 
+  '🌟', '💫', '🌈', '☀️', '🌤️', '⛅', '☁️',
+  '🌧️', '⛈️', '🌩️', '🌨️', '❄️', '🌪️', '🌊', '💧',
+  '🔥', '⚡', '🌙', '🌑', '🌕', '🌍', '🪐', '🛸',
+  '🎉', '🎊', '🎈', '🎂', '🎁', '🎀', '🧸', '🎮',
+  '🎧', '🎤', '📱', '💻', '🖥️', '🕹️', '📸', '📷',
+  '📹', '🎬', '📺', '📻', '📡', '⌚', '⏰', '🕰️',
+  '🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼',
+  '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🦄',
+  '🐔', '🐧', '🐦', '🐤', '🐣', '🦆', '🦅', '🦉',
+  '🐢', '🐍', '🦎', '🦂', '🕷️', '🦕', '🦖', '🐙'
+];
+
+function initializeEmojiPicker() {
+    const emojiPicker = document.getElementById('emojiPicker');
+    const emojiButton = document.getElementById('emojiButton');
+    const messageText = document.getElementById('messageText');
+
+    // Populate emoji grid
+    const emojiGrid = emojiPicker.querySelector('.emoji-grid');
+    emojis.forEach(emoji => {
+        const emojiItem = document.createElement('button');
+        emojiItem.className = 'emoji-item';
+        emojiItem.textContent = emoji;
+        emojiItem.onclick = () => {
+            messageText.value += emoji;
+            messageText.focus();
+            emojiPicker.classList.add('hidden');
+        };
+        emojiGrid.appendChild(emojiItem);
+    });
+
+    // Toggle emoji picker
+    emojiButton.onclick = (e) => {
+        e.stopPropagation();
+        emojiPicker.classList.toggle('hidden');
+    };
+
+    // Close emoji picker when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!emojiPicker.contains(e.target) && e.target !== emojiButton) {
+            emojiPicker.classList.add('hidden');
+        }
+    });
+}
+
+// Dark theme functionality
+function initializeTheme() {
+    const themeToggle = document.getElementById('themeToggle');
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)');
+
+    // Check for saved theme preference or use system preference
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme) {
+        document.documentElement.setAttribute('data-theme', savedTheme);
+    } else {
+        document.documentElement.setAttribute('data-theme', prefersDark.matches ? 'dark' : 'light');
+    }
+
+    // Toggle theme
+    themeToggle.onclick = () => {
+        const currentTheme = document.documentElement.getAttribute('data-theme');
+        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', newTheme);
+        localStorage.setItem('theme', newTheme);
+    };
+
+    // Listen for system theme changes
+    prefersDark.addListener((e) => {
+        if (!localStorage.getItem('theme')) {
+            document.documentElement.setAttribute('data-theme', e.matches ? 'dark' : 'light');
+        }
+    });
+}
+
+// Profile settings functionality
+function initializeProfileSettings() {
+    const profileSettingsBtn = document.getElementById('profileSettingsBtn');
+    const profileSettingsModal = document.getElementById('profileSettingsModal');
+    const closeProfileModal = document.getElementById('closeProfileModal');
+    const cancelProfileEdit = document.getElementById('cancelProfileEdit');
+    const saveProfileEdit = document.getElementById('saveProfileEdit');
+    const displayNameInput = document.getElementById('displayName');
+
+    // Open modal
+    profileSettingsBtn.onclick = () => {
+        displayNameInput.value = state.currentUser.displayName || '';
+        profileSettingsModal.classList.remove('hidden');
+    };
+
+    // Close modal
+    const closeModal = () => {
+        profileSettingsModal.classList.add('hidden');
+    };
+
+    closeProfileModal.onclick = closeModal;
+    cancelProfileEdit.onclick = closeModal;
+
+    // Save changes
+    saveProfileEdit.onclick = async () => {
+        const newDisplayName = displayNameInput.value.trim();
+
+        if (!newDisplayName) {
+            showError('Display name cannot be empty', null);
+            return;
+        }
+
+        try {
+            saveProfileEdit.classList.add('btn-loading');
+
+            // Update user profile in Firebase Auth
+            await updateProfile(auth.currentUser, {
+                displayName: newDisplayName
+            });
+
+            // Update user data in Realtime Database
+            const userRef = ref(database, `users/${state.currentUser.uid}`);
+            await update(userRef, {
+                name: newDisplayName
+            });
+
+            // Update local state
+            state.currentUser.displayName = newDisplayName;
+            elements.currentUserName.textContent = newDisplayName;
+
+            // Update UI in active chat if it's the current user
+            if (state.selectedUser && state.selectedUser.uid === state.currentUser.uid) {
+                elements.chatUserName.textContent = newDisplayName;
+            }
+
+            closeModal();
+            showSuccess('Display name updated successfully');
+
+        } catch (error) {
+            console.error('Error updating display name:', error);
+            showError('Failed to update display name. Please try again.', null);
+        } finally {
+            saveProfileEdit.classList.remove('btn-loading');
+        }
+    };
+}
+
+// Voice recording functionality
+async function initializeVoiceRecording() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    state.mediaRecorder = new MediaRecorder(stream);
+
+    state.mediaRecorder.ondataavailable = (event) => {
+      if (event.data.size > 0) {
+        state.audioChunks.push(event.data);
+      }
+    };
+
+    state.mediaRecorder.onstop = async () => {
+      const audioBlob = new Blob(state.audioChunks, { type: 'audio/webm' });
+      const audioUrl = URL.createObjectURL(audioBlob);
+
+      // Convert blob to base64
+      const reader = new FileReader();
+      reader.readAsDataURL(audioBlob);
+      reader.onloadend = async () => {
+        const base64Audio = reader.result;
+
+        // Send the voice note
+        await sendVoiceNote(base64Audio);
+
+        // Clean up
+        state.audioChunks = [];
+        URL.revokeObjectURL(audioUrl);
+      };
+    };
+
+    // Set up voice button click handler
+    elements.voiceButton.onclick = toggleRecording;
+
+  } catch (error) {
+    console.error('Error initializing voice recording:', error);
+    showError('Failed to initialize voice recording. Please check microphone permissions.', null);
+  }
+}
+
+function toggleRecording() {
+  if (!state.mediaRecorder) {
+    showError('Voice recording not initialized. Please refresh the page.', null);
+    return;
+  }
+
+  if (state.isRecording) {
+    stopRecording();
+  } else {
+    startRecording();
+  }
+}
+
+function startRecording() {
+  if (!state.currentUser || !state.selectedUser) {
+    showError('Please select a user to send voice note to.', null);
+    return;
+  }
+
+  state.audioChunks = [];
+  state.mediaRecorder.start();
+  state.isRecording = true;
+
+  // Update UI
+  elements.voiceButton.classList.add('recording');
+  elements.voiceButton.innerHTML = `
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor">
+      <circle cx="10" cy="10" r="6" fill="currentColor"/>
+    </svg>
+  `;
+
+  // Show recording indicator
+  const recordingIndicator = document.createElement('div');
+  recordingIndicator.id = 'recordingIndicator';
+  recordingIndicator.className = 'recording-indicator';
+  recordingIndicator.innerHTML = 'Recording...';
+  elements.messageInput.insertBefore(recordingIndicator, elements.messageInput.firstChild);
+}
+
+function stopRecording() {
+  if (!state.isRecording) return;
+
+  state.mediaRecorder.stop();
+  state.isRecording = false;
+
+  // Update UI
+  elements.voiceButton.classList.remove('recording');
+  elements.voiceButton.innerHTML = `
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-600 dark:text-gray-300" viewBox="0 0 20 20" fill="currentColor">
+      <path fill-rule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 005 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clip-rule="evenodd" />
+    </svg>
+  `;
+
+  // Remove recording indicator
+  const recordingIndicator = document.getElementById('recordingIndicator');
+  if (recordingIndicator) {
+    recordingIndicator.remove();
+  }
+}
+
+async function sendVoiceNote(audioData) {
+  if (!state.currentUser || !state.selectedUser) return;
+
+  try {
+    elements.sendBtn.classList.add('btn-loading');
+
+    const chatId = getChatId(state.currentUser.uid, state.selectedUser.uid);
+    const messagesRef = ref(database, `messages/${chatId}`);
+
+    const messageData = {
+      from: state.currentUser.uid,
+      to: state.selectedUser.uid,
+      timestamp: serverTimestamp(),
+      seen: false,
+      mediaURL: audioData,
+      type: 'voice'
+    };
+
+    // Add reply data if there's a reply to a message
+    if (state.replyingTo) {
+      const replyData = {
+        messageId: state.replyingTo.messageId,
+        from: state.replyingTo.from
+      };
+
+      // Only add text if it exists
+      if (state.replyingTo.text) {
+        replyData.text = state.replyingTo.text;
+      }
+
+      // Only add media-related fields if it's a media message
+      if (state.replyingTo.mediaURL) {
+        replyData.mediaURL = state.replyingTo.mediaURL;
+        replyData.type = state.replyingTo.type || 'image';
+      }
+
+      messageData.replyTo = replyData;
+    }
+
+    await push(messagesRef, messageData);
+
+    // Clear reply state
+    state.replyingTo = null;
+    updateReplyUI();
+
+    // Stop typing indicator
+    await stopTyping();
+
+  } catch (error) {
+    console.error('Error sending voice note:', error);
+    showError('Failed to send voice note. Please try again.', null);
+  } finally {
+    elements.sendBtn.classList.remove('btn-loading');
+  }
+}
+
+// Update initializeApp function
+function initializeApp() {
+    try {
+        initializeElements();
+        setupEventListeners();
+        initializeEmojiPicker();
+        initializeTheme();
+        initializeProfileSettings();
+        initializeVoiceRecording();
+        console.log('Chat app initialized successfully');
+    } catch (error) {
+        console.error('Error initializing app:', error);
+        showError('Failed to initialize app. Please refresh the page.');
+    }
+}
+
+// Test function to add a sample user (for debugging)
+window.addTestUser = async function() {
+  if (!state.currentUser) {
+    console.log('Please sign in first');
+    return;
+  }
+
+  try {
+    await set(ref(database, 'users/test-user-123'), {
+      name: 'Test User',
+      email: 'test@example.com',
+      photoURL: 'https://via.placeholder.com/50',
+      online: true,
+      lastSeen: serverTimestamp()
+    });
+    console.log('Test user added successfully');
+  } catch (error) {
+    console.error('Error adding test user:', error);
+  }
+};
+
+// Expose debugging functions
+window.debugChat = {
+  state: () => state,
+  users: () => state.users,
+  currentUser: () => state.currentUser,
+  reloadUsers: loadUsers,
+  addTestUser: window.addTestUser
+};
+
+// Start the application when DOM is loaded
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initializeApp);
+} else {
+  initializeApp();
+}
+// Add reply state management
+function handleReplyClick(messageId, message) {
+  state.replyingTo = {
+    messageId,
+    text: message.text,
+    from: message.from,
+    type: message.type,
+    mediaURL: message.mediaURL
+  };
+  updateReplyUI();
+  elements.messageText.focus();
+}
+
+function updateReplyUI() {
+  const replyPreview = document.getElementById('replyPreview');
+  if (state.replyingTo) {
+    const replyToUser = state.users[state.replyingTo.from];
+    const replyToName = replyToUser ? replyToUser.name : 'User';
+
+    let replyContent = '';
+
+    // Add text content if exists
+    if (state.replyingTo.text) {
+      replyContent += `<div class="reply-text">${escapeHtml(state.replyingTo.text)}</div>`;
+    }
+
+    // Add media content if exists
+    if (state.replyingTo.mediaURL) {
+      if (state.replyingTo.type === 'voice') {
+        replyContent += `
+          <div class="reply-media voice-message">
+            <audio controls>
+              <source src="${state.replyingTo.mediaURL}" type="audio/webm">
+              Your browser does not support the audio element.
+            </audio>
+            <span class="voice-duration">Voice note</span>
+          </div>
+        `;
+      } else if (state.replyingTo.mediaURL.startsWith('data:image/') || /\.(jpg|jpeg|png|gif|webp)$/i.test(state.replyingTo.mediaURL)) {
+        replyContent += `
+          <div class="reply-media">
+            <img src="${state.replyingTo.mediaURL}" alt="Shared image" class="reply-image">
+          </div>
+        `;
+      }
+    }
+
+    replyPreview.innerHTML = `
+      <div class="reply-preview">
+        <div class="reply-to">Replying to ${replyToName}</div>
+        ${replyContent}
+        <button onclick="cancelReply()" class="cancel-reply">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
+          </svg>
+        </button>
+      </div>
+    `;
+    replyPreview.classList.remove('hidden');
+  } else {
+    replyPreview.classList.add('hidden');
+  }
+}
+
+function cancelReply() {
+  state.replyingTo = null;
+  updateReplyUI();
+}
+
+// Add success message function
+function showSuccess(message) {
+    const successDiv = document.createElement('div');
+    successDiv.className = 'success-message';
+    successDiv.textContent = message;
+
+    document.body.appendChild(successDiv);
+
+    // Remove after 3 seconds
+    setTimeout(() => {
+        successDiv.remove();
+    }, 3000);
+}
+// Add event listener for Escape key to cancel reply
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && state.replyingTo) {
+    cancelReply();
+  }
+});
+
+function showToastNotification(fromUser, message) {
+  const toast = document.getElementById('toastNotification');
+  if (!toast) return;
+
+  let msg = '';
+  if (message.text) {
+    msg = message.text;
+  } else if (message.type === 'voice') {
+    msg = 'Voice message';
+  } else if (message.mediaURL) {
+    msg = 'Media message';
+  } else {
+    msg = 'New message';
+  }
+
+  toast.innerHTML = `<span class="toast-user">${fromUser?.name || 'User'}:</span> ${msg}`;
+  toast.classList.remove('hidden');
+
+  // Show notification in tab title
+  document.title = `🔔 New message from ${fromUser?.name || 'User'}!`;
+
+  // Hide after 4 seconds and restore title
+  setTimeout(() => {
+    toast.classList.add('hidden');
+    document.title = originalTitle;
+  }, 4000);
+
+  // Optional: Click to jump to chat
+  toast.onclick = () => {
+    if (fromUser && fromUser.uid) {
+      selectUser(fromUser.uid, fromUser);
+      toast.classList.add('hidden');
+      document.title = originalTitle;
+    }
+  };
+}
+
+const originalTitle = document.title;
+
+// Listen to all chats with other users
+function listenToAllChats() {
+  if (!state.currentUser) return;
+  // Remove old listeners
+  Object.keys(state.messageListeners).forEach(chatId => {
+    const messagesRef = ref(database, `messages/${chatId}`);
+    off(messagesRef, state.messageListeners[chatId]);
+    delete state.messageListeners[chatId];
+  });
+
+  // Listen to all chats with other users
+  Object.keys(state.users).forEach(uid => {
+    if (uid === state.currentUser.uid) return;
+    const chatId = getChatId(state.currentUser.uid, uid);
+    const messagesRef = ref(database, `messages/${chatId}`);
+    const listener = onValue(messagesRef, (snapshot) => {
+      const messages = snapshot.val() || {};
+      const previousMessages = state.messages[chatId] || {};
+      const isNewMessage = Object.keys(messages).length > Object.keys(previousMessages).length;
+
+      // Find the latest message
+      let latestMsg = null;
+      Object.entries(messages).forEach(([key, msg]) => {
+        if (!latestMsg || (msg.timestamp > latestMsg.timestamp)) {
+          latestMsg = msg;
+        }
+      });
+
+      // Show toast if:
+      // - There is a new message
+      // - The message is from the other user
+      // - The chat is NOT currently open
+      if (
+        isNewMessage &&
+        latestMsg &&
+        latestMsg.from !== state.currentUser.uid &&
+        (!state.selectedUser || getChatId(state.currentUser.uid, state.selectedUser.uid) !== chatId)
+      ) {
+        showToastNotification(state.users[latestMsg.from], latestMsg);
+      }
+
+      state.messages[chatId] = messages;
+
+      // Only render messages if this chat is currently open
+      if (state.selectedUser && getChatId(state.currentUser.uid, state.selectedUser.uid) === chatId) {
+        renderMessages(messages);
+        markMessagesAsSeen();
+      }
+    });
+    state.messageListeners[chatId] = listener;
+  });
+}
+
+// Call listenToAllChats on user state change
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    state.currentUser = user;
+    listenToAllChats(); // Start listening to all chats
+  } else {
+    state.currentUser = null;
+    state.selectedUser = null;
+
+    // Clean up listeners
+    cleanupChatListeners();
+  }
+});
+
+async function markMessagesAsSeen() {
+  if (!state.currentUser || !state.selectedUser) return;
+  const chatId = getChatId(state.currentUser.uid, state.selectedUser.uid);
+  const messages = state.messages[chatId] || {};
+  const updates = {};
+  let hasUnseen = false;
+
+  Object.entries(messages).forEach(([msgId, msg]) => {
+    if (msg.from === state.selectedUser.uid && !msg.seen) {
+      updates[`messages/${chatId}/${msgId}/seen`] = true;
+      hasUnseen = true;
+    }
+  });
+
+  if (hasUnseen) {
+    await update(ref(database), updates);
+  }
 }
