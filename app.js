@@ -236,6 +236,7 @@ function loadUsers() {
     console.log('Number of users found:', Object.keys(users).length);
     
     state.users = users;
+    listenToAllChats(); // <-- Add this line
     renderUsersList();
   }, (error) => {
     console.error('Error loading users:', error);
@@ -279,31 +280,48 @@ function renderUsersList() {
   
   console.log('Users list rendered successfully');
 }
-
+function getUnreadCountForUser(uid) {
+  if (!state.currentUser) return 0;
+  const chatId = getChatId(state.currentUser.uid, uid);
+  const messages = state.messages[chatId] || {};
+  let count = 0;
+  Object.values(messages).forEach(msg => {
+    if (msg.from === uid && !msg.seen) count++;
+  });
+  return count;
+}
 function createUserElement(uid, user) {
-  const userDiv = document.createElement('div');
-  userDiv.className = `user-item ${state.selectedUser?.uid === uid ? 'active' : ''}`;
-  userDiv.dataset.uid = uid;
-  
+  const unreadCount = getUnreadCountForUser(uid);
+  const unreadBadge = unreadCount > 0
+    ? `<span class="unread-badge">${unreadCount}</span>`
+    : '';
+
+  // Define statusClass and statusText
   const isOnline = user.online;
   const statusClass = isOnline ? 'status-online' : 'status-offline';
   const statusText = isOnline ? 'Online' : 'Offline';
-  
+
+  // Create the userDiv element
+  const userDiv = document.createElement('div');
+  userDiv.className = `user-item ${state.selectedUser?.uid === uid ? 'active' : ''}`;
+  userDiv.dataset.uid = uid;
+
   userDiv.innerHTML = `
     <div class="flex items-center">
       <div class="relative">
         <img class="w-10 h-10 rounded-full" src="${user.photoURL || '/default-avatar.png'}" alt="${user.name}">
         <div class="absolute bottom-0 right-0 w-3 h-3 ${statusClass} rounded-full border-2 border-white"></div>
       </div>
-      <div class="ml-3">
+      <div class="ml-3 flex items-center">
         <div class="font-semibold text-gray-800">${user.name}</div>
-        <div class="text-xs text-gray-500">${statusText}</div>
+        ${unreadBadge}
       </div>
+      <div class="text-xs text-gray-500 ml-3">${statusText}</div>
     </div>
   `;
-  
+
   userDiv.addEventListener('click', () => selectUser(uid, user));
-  
+
   return userDiv;
 }
 
@@ -312,11 +330,11 @@ function selectUser(uid, user) {
   if (state.selectedUser) {
     cleanupChatListeners();
   }
-  
+
   state.selectedUser = { uid, ...user };
-  
+
   // Update UI
-  renderUsersList();
+  // renderUsersList(); // REMOVE THIS LINE
   updateChatHeader();
   showChatInterface();
   loadMessages();
@@ -360,11 +378,34 @@ function loadMessages() {
     const messages = snapshot.val() || {};
     const previousMessages = state.messages[chatId] || {};
     const isNewMessage = Object.keys(messages).length > Object.keys(previousMessages).length;
-    
+
+    // Find the latest message
+    let latestMsg = null;
+    let latestKey = null;
+    Object.entries(messages).forEach(([key, msg]) => {
+      if (!latestMsg || (msg.timestamp > latestMsg.timestamp)) {
+        latestMsg = msg;
+        latestKey = key;
+      }
+    });
+
+    // Show toast if:
+    // - There is a new message
+    // - The message is from the other user
+    // - The chat is NOT currently open
+    if (
+      isNewMessage &&
+      latestMsg &&
+      latestMsg.from !== state.currentUser.uid &&
+      (!state.selectedUser || state.selectedUser.uid !== latestMsg.from)
+    ) {
+      showToastNotification(state.users[latestMsg.from], latestMsg);
+    }
+
     state.messages[chatId] = messages;
     renderMessages(messages);
     markMessagesAsSeen();
-    
+
     // Only scroll if there's a new message
     if (isNewMessage) {
       scrollToBottom(true);
@@ -486,7 +527,7 @@ function createMessageElement(messageId, message) {
   replyButton.className = 'reply-button';
   replyButton.innerHTML = `
     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-      <path fill-rule="evenodd" d="M7.707 3.293a1 1 0 010 1.414L5.414 7H11a7 7 0 017 7v2a1 1 0 11-2 0v-2a5 5 0 00-5-5H5.414l2.293 2.293a1 1 0 11-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"/>
+      <path fill-rule="evenodd" d="M7.707 3.293a1 1 0 010 1.414L5.414 7H11a7 7 0 007 7v2a1 1 0 11-2 0v-2a5 5 0 00-5-5H5.414l2.293 2.293a1 1 0 11-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"/>
     </svg>
   `;
   replyButton.onclick = (e) => {
@@ -612,7 +653,7 @@ function detectMediaContent(text) {
   }
   
   // Check for image or audio URLs
-  const urlRegex = /(https?:\/\/[^\s]+\.(jpg|jpeg|png|gif|webp|mp3|wav|ogg|m4a))/i;
+  const urlRegex = /(https?:\/\/[^\s]+\.(jpg|jpeg|png|gif|webp|mp3|wav|ogg|m4a|mp4|webm|mov|avi))/i;
   const match = text.match(urlRegex);
   
   return match ? match[0] : null;
@@ -822,13 +863,24 @@ const emojis = [
   '😶', '😐', '😑', '😬', '🙄', '😯', '😦', '😧',
   '😮', '😲', '🥱', '😴', '🤤', '😪', '😵', '🤐',
   '🥴', '🤢', '🤮', '🤧', '😷', '🤒', '🤕', '🤑',
-  '🤠', '👻', '😺', '😸', '🔥', '🌙', '🌑', '🎉', 
+  '🤠', '💩', '👻', '👽', '👾', '🤖', '😺', '😸',
   '🙌', '👏', '👋', '🤙', '👍', '👎', '👊', '✊',
   '🤛', '🤜', '🤞', '✌️', '🤟', '🤘', '👌', '🙏',
-  '🫶', '✍️', '💓', '💗', '💖', '💘', '💝', '💞',
-  '💕', '❤️', '🧡', '💛', '💚', '💙', '💜', '🤎',
-  '🖤', '🤍', '💔', '❣️', '💟', '💯', '🎊', '🎀',
-  '🕳️', '✨', '🌟', '💫', '🌈', '☀️', '🌤️', '⛅',
+  '🫶', '🤲', '👐', '✋', '🤚', '🖐️', '🖖', '👈',
+  '👉', '👆', '👇', '☝️', '🖕', '✍️','💓', '💗', 
+  '💖', '💘', '💝', '💞', '💕', '❤️',
+  '🧡', '💛', '💚', '💙', '💜', '🤎', '🖤', '🤍',
+  '💔', '❣️', '💟', '💯', '💢', '💥', '🕳️','✨', 
+  '🌟', '💫', '🌈', '☀️', '🌤️', '⛅', '☁️',
+  '🌧️', '⛈️', '🌩️', '🌨️', '❄️', '🌪️', '🌊', '💧',
+  '🔥', '⚡', '🌙', '🌑', '🌕', '🌍', '🪐', '🛸',
+  '🎉', '🎊', '🎈', '🎂', '🎁', '🎀', '🧸', '🎮',
+  '🎧', '🎤', '📱', '💻', '🖥️', '🕹️', '📸', '📷',
+  '📹', '🎬', '📺', '📻', '📡', '⌚', '⏰', '🕰️',
+  '🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼',
+  '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🦄',
+  '🐔', '🐧', '🐦', '🐤', '🐣', '🦆', '🦅', '🦉',
+  '🐢', '🐍', '🦎', '🦂', '🕷️', '🦕', '🦖', '🐙'
 ];
 
 function initializeEmojiPicker() {
@@ -1172,6 +1224,13 @@ if (document.readyState === 'loading') {
   initializeApp();
 }
 
+// Add this for real-time notification updates
+setInterval(() => {
+  if (state.currentUser && elements.usersList) {
+    renderUsersList();
+  }
+}, 1000);
+
 // Add reply state management
 function handleReplyClick(messageId, message) {
   state.replyingTo = {
@@ -1254,32 +1313,117 @@ function showSuccess(message) {
         successDiv.remove();
     }, 3000);
 }
-
-// Update the scrollToBottom function to be more reliable
-function scrollToBottom(smooth = false) {
-  const messagesContainer = elements.messagesContainer;
-  if (messagesContainer) {
-    // Only scroll if we're not already at the bottom
-    const isAtBottom = messagesContainer.scrollHeight - messagesContainer.scrollTop <= messagesContainer.clientHeight + 100;
-    
-    if (!isAtBottom) {
-      const scrollOptions = {
-        top: messagesContainer.scrollHeight,
-        behavior: smooth ? 'smooth' : 'auto'
-      };
-      
-      // Use requestAnimationFrame for more reliable scrolling
-      requestAnimationFrame(() => {
-        messagesContainer.scrollTo(scrollOptions);
-      });
-    }
-  }
-}
-
 // Add event listener for Escape key to cancel reply
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && state.replyingTo) {
     cancelReply();
+  }
+});
+
+function showToastNotification(fromUser, message) {
+  const toast = document.getElementById('toastNotification');
+  if (!toast) return;
+
+  let msg = '';
+  if (message.text) {
+    msg = message.text;
+  } else if (message.type === 'voice') {
+    msg = 'Voice message';
+  } else if (message.mediaURL) {
+    msg = 'Media message';
+  } else {
+    msg = 'New message';
+  }
+
+  toast.innerHTML = `<span class="toast-user">${fromUser?.name || 'User'}:</span> ${msg}`;
+  toast.classList.remove('hidden');
+
+  // Show notification in tab title
+  document.title = `🔔 New message from ${fromUser?.name || 'User'}!`;
+
+  // Hide after 4 seconds and restore title
+  setTimeout(() => {
+    toast.classList.add('hidden');
+    document.title = originalTitle;
+  }, 4000);
+
+  // Optional: Click to jump to chat
+  toast.onclick = () => {
+    if (fromUser && fromUser.uid) {
+      selectUser(fromUser.uid, fromUser);
+      toast.classList.add('hidden');
+      document.title = originalTitle;
+    }
+  };
+}
+
+const originalTitle = document.title;
+
+// Listen to all chats with other users
+function listenToAllChats() {
+  if (!state.currentUser) return;
+  // Remove old listeners
+  Object.keys(state.messageListeners).forEach(chatId => {
+    const messagesRef = ref(database, `messages/${chatId}`);
+    off(messagesRef, state.messageListeners[chatId]);
+    delete state.messageListeners[chatId];
+  });
+
+  // Listen to all chats with other users
+  Object.keys(state.users).forEach(uid => {
+    if (uid === state.currentUser.uid) return;
+    const chatId = getChatId(state.currentUser.uid, uid);
+    const messagesRef = ref(database, `messages/${chatId}`);
+    const listener = onValue(messagesRef, (snapshot) => {
+      const messages = snapshot.val() || {};
+      const previousMessages = state.messages[chatId] || {};
+      const isNewMessage = Object.keys(messages).length > Object.keys(previousMessages).length;
+
+      // Find the latest message
+      let latestMsg = null;
+      Object.entries(messages).forEach(([key, msg]) => {
+        if (!latestMsg || (msg.timestamp > latestMsg.timestamp)) {
+          latestMsg = msg;
+        }
+      });
+
+      // Show toast if:
+      // - There is a new message
+      // - The message is from the other user
+      // - The chat is NOT currently open
+      if (
+        isNewMessage &&
+        latestMsg &&
+        latestMsg.from !== state.currentUser.uid &&
+        (!state.selectedUser || state.selectedUser.uid !== latestMsg.from)
+      ) {
+        showToastNotification(state.users[latestMsg.from], latestMsg);
+      }
+
+      state.messages[chatId] = messages;
+
+      // Only render messages if this chat is currently open
+      if (state.selectedUser && getChatId(state.currentUser.uid, state.selectedUser.uid) === chatId) {
+        renderMessages(messages);
+        markMessagesAsSeen();
+        if (isNewMessage) scrollToBottom(true);
+      }
+    });
+    state.messageListeners[chatId] = listener;
+  });
+}
+
+// Call listenToAllChats on user state change
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    state.currentUser = user;
+    listenToAllChats(); // Start listening to all chats
+  } else {
+    state.currentUser = null;
+    state.selectedUser = null;
+    
+    // Clean up listeners
+    cleanupChatListeners();
   }
 });
 
