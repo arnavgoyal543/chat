@@ -19,7 +19,8 @@ import {
   query,
   orderByChild,
   equalTo,
-  off
+  off,
+  limitToLast // <-- add this import
 } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-database.js';
 
 // Global state management
@@ -260,23 +261,23 @@ function renderUsersList() {
   }
   
   elements.usersList.innerHTML = '';
-  
+
   const otherUsers = Object.entries(state.users).filter(([uid, user]) => {
     return uid !== state.currentUser?.uid;
   });
-  
-  console.log('Users to display (excluding current user):', otherUsers);
-  
+
   if (otherUsers.length === 0) {
     elements.usersList.innerHTML = '<div class="text-center text-gray-500 py-4">No other users online yet.<br><span class="text-xs">Share this app with friends!</span></div>';
     return;
   }
-  
+
+  // Use DocumentFragment for batch DOM update
+  const fragment = document.createDocumentFragment();
   otherUsers.forEach(([uid, user]) => {
-    console.log('Creating element for user:', uid, user);
     const userElement = createUserElement(uid, user);
-    elements.usersList.appendChild(userElement);
+    fragment.appendChild(userElement);
   });
+  elements.usersList.appendChild(fragment);
   
   console.log('Users list rendered successfully');
 }
@@ -364,15 +365,16 @@ function showChatInterface() {
 // Message management
 function loadMessages() {
   if (!state.currentUser || !state.selectedUser) return;
-  
+
   const chatId = getChatId(state.currentUser.uid, state.selectedUser.uid);
-  const messagesRef = ref(database, `messages/${chatId}`);
-  
+  // Limit to last 50 messages for performance
+  const messagesRef = query(ref(database, `messages/${chatId}`), limitToLast(50));
+
   // Clean up existing listener
   if (state.messageListeners[chatId]) {
     off(messagesRef, state.messageListeners[chatId]);
   }
-  
+
   // Set up new listener
   const listener = onValue(messagesRef, (snapshot) => {
     const messages = snapshot.val() || {};
@@ -404,7 +406,7 @@ function loadMessages() {
 
     state.messages[chatId] = messages;
     renderMessages(messages);
-    markMessagesAsSeen();
+    markMessagesAsSeen().catch(console.error);
   }, (error) => {
     console.error('Error loading messages:', error);
     showError('Failed to load messages. Please try again.', null);
@@ -415,12 +417,16 @@ function loadMessages() {
 
 function renderMessages(messages) {
   if (!elements.messagesList) return;
-  
-  elements.messagesList.innerHTML = '';
-  
+
+  // Only append new messages if possible
   const sortedMessages = Object.entries(messages)
     .sort(([, a], [, b]) => a.timestamp - b.timestamp);
-  
+
+  // If already rendered, only append new
+  if (elements.messagesList.childElementCount === sortedMessages.length) return;
+
+  // Otherwise, clear and render all (fallback)
+  elements.messagesList.innerHTML = '';
   sortedMessages.forEach(([messageId, message]) => {
     const messageElement = createMessageElement(messageId, message);
     elements.messagesList.appendChild(messageElement);
@@ -534,6 +540,7 @@ function createMessageElement(messageId, message) {
   return messageDiv;
 }
 
+// 1. Lazy load images in createMediaContent
 function createMediaContent(mediaURL) {
   const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(mediaURL);
   const isAudio = /\.(mp3|wav|ogg|m4a)$/i.test(mediaURL);
@@ -543,7 +550,7 @@ function createMediaContent(mediaURL) {
   if (isImage || isBase64Image) {
     return `
       <div class="message-media">
-        <img src="${mediaURL}" alt="Shared image" onerror="this.alt='Failed to load image'; this.style.display='none';">
+        <img src="${mediaURL}" alt="Shared image" loading="lazy" onerror="this.alt='Failed to load image'; this.style.display='none';">
       </div>
     `;
   } else if (isAudio || isBase64Audio) {
@@ -567,142 +574,31 @@ function createMediaContent(mediaURL) {
   }
 }
 
-async function sendMessage() {
-  const messageText = elements.messageText.value.trim();
-  
-  // Allow sending if there's a reply even if text is empty
-  if ((!messageText && !state.replyingTo) || !state.currentUser || !state.selectedUser) return;
-  
-  try {
-    elements.sendBtn.classList.add('btn-loading');
-    
-    const chatId = getChatId(state.currentUser.uid, state.selectedUser.uid);
-    const messagesRef = ref(database, `messages/${chatId}`);
-    
-    // Detect if message contains media URL or base64 data
-    const mediaURL = detectMediaContent(messageText);
-    
-    const messageData = {
-      from: state.currentUser.uid,
-      to: state.selectedUser.uid,
-      timestamp: serverTimestamp(),
-      seen: false
-    };
-    
-    // Add reply data if there's a reply to a message
-    if (state.replyingTo) {
-      const replyData = {
-        messageId: state.replyingTo.messageId,
-        from: state.replyingTo.from
-      };
-      
-      // Only add text if it exists
-      if (state.replyingTo.text) {
-        replyData.text = state.replyingTo.text;
-      }
-      
-      // Only add media-related fields if it's a media message
-      if (state.replyingTo.mediaURL) {
-        replyData.mediaURL = state.replyingTo.mediaURL;
-        replyData.type = state.replyingTo.type || 'image';
-      }
-      
-      messageData.replyTo = replyData;
-    }
-    
-    if (mediaURL) {
-      messageData.mediaURL = mediaURL;
-      // If it's just a media URL, don't include it as text
-      if (messageText !== mediaURL) {
-        messageData.text = messageText.replace(mediaURL, '').trim();
-      }
-    } else if (messageText) {
-      messageData.text = messageText;
-    }
-    
-    await push(messagesRef, messageData);
-    
-    // Clear input and reply state
-    elements.messageText.value = '';
-    state.replyingTo = null;
-    updateReplyUI();
-    
-    // Stop typing indicator
-    await stopTyping();
-    
-  } catch (error) {
-    console.error('Error sending message:', error);
-    showError('Failed to send message. Please try again.', null);
-  } finally {
-    elements.sendBtn.classList.remove('btn-loading');
-  }
-}
-
-function detectMediaContent(text) {
-  // Check for base64 image or audio data
-  if (text.startsWith('data:image/') || text.startsWith('data:audio/')) {
-    return text;
-  }
-  
-  // Check for image or audio URLs
-  const urlRegex = /(https?:\/\/[^\s]+\.(jpg|jpeg|png|gif|webp|mp3|wav|ogg|m4a|mp4|webm|mov|avi))/i;
-  const match = text.match(urlRegex);
-  
-  return match ? match[0] : null;
-}
-
-async function markMessagesAsSeen() {
-  if (!state.currentUser || !state.selectedUser) return;
-  
-  const chatId = getChatId(state.currentUser.uid, state.selectedUser.uid);
-  const messages = state.messages[chatId] || {};
-  
-  // Mark unread messages from the selected user as seen
-  const updates = {};
-  Object.entries(messages).forEach(([messageId, message]) => {
-    if (message.from === state.selectedUser.uid && !message.seen) {
-      updates[`messages/${chatId}/${messageId}/seen`] = true;
-    }
-  });
-  
-  if (Object.keys(updates).length > 0) {
-    try {
-      await update(ref(database), updates);
-    } catch (error) {
-      console.error('Error marking messages as seen:', error);
-    }
-  }
-}
-
-// Typing indicator functionality
+// 2. Debounce typing indicator updates
 let typingTimeout;
-
+let typingDebounce;
 async function handleTyping() {
   if (!state.currentUser || !state.selectedUser) return;
-  
-  try {
-    const chatId = getChatId(state.currentUser.uid, state.selectedUser.uid);
-    const typingRef = ref(database, `typing/${chatId}/${state.currentUser.uid}`);
-    
-    // Set typing status
-    await set(typingRef, {
-      typing: true,
-      timestamp: serverTimestamp()
-    });
-    
-    // Clear existing timeout
-    if (typingTimeout) {
-      clearTimeout(typingTimeout);
+
+  // Debounce typing updates to 1 per 500ms
+  if (typingDebounce) clearTimeout(typingDebounce);
+  typingDebounce = setTimeout(async () => {
+    try {
+      const chatId = getChatId(state.currentUser.uid, state.selectedUser.uid);
+      const typingRef = ref(database, `typing/${chatId}/${state.currentUser.uid}`);
+      await set(typingRef, {
+        typing: true,
+        timestamp: serverTimestamp()
+      }).catch(console.error);
+
+      if (typingTimeout) clearTimeout(typingTimeout);
+      typingTimeout = setTimeout(async () => {
+        await stopTyping().catch(console.error);
+      }, 3000);
+    } catch (error) {
+      console.error('Error setting typing status:', error);
     }
-    
-    // Set timeout to stop typing after 3 seconds
-    typingTimeout = setTimeout(async () => {
-      await stopTyping();
-    }, 3000);
-    
-  } catch (error) {
-    console.error('Error setting typing status:', error);
-  }
+  }, 500);
 }
 
 async function stopTyping() {
@@ -855,14 +751,24 @@ const emojis = [
   '😶', '😐', '😑', '😬', '🙄', '😯', '😦', '😧',
   '😮', '😲', '🥱', '😴', '🤤', '😪', '😵', '🤐',
   '🥴', '🤢', '🤮', '🤧', '😷', '🤒', '🤕', '🤑',
-  '🤠', '😺', '😸',
+  '🤠', '💩', '👻', '👽', '👾', '🤖', '😺', '😸',
   '🙌', '👏', '👋', '🤙', '👍', '👎', '👊', '✊',
   '🤛', '🤜', '🤞', '✌️', '🤟', '🤘', '👌', '🙏',
   '🫶', '🤲', '👐', '✋', '🤚', '🖐️', '🖖', '👈',
   '👉', '👆', '👇', '☝️', '🖕', '✍️','💓', '💗', 
   '💖', '💘', '💝', '💞', '💕', '❤️',
   '🧡', '💛', '💚', '💙', '💜', '🤎', '🖤', '🤍',
-  '💔', '❣️', '💟', '💯', 
+  '💔', '❣️', '💟', '💯', '💢', '💥', '🕳️','✨', 
+  '🌟', '💫', '🌈', '☀️', '🌤️', '⛅', '☁️',
+  '🌧️', '⛈️', '🌩️', '🌨️', '❄️', '🌪️', '🌊', '💧',
+  '🔥', '⚡', '🌙', '🌑', '🌕', '🌍', '🪐', '🛸',
+  '🎉', '🎊', '🎈', '🎂', '🎁', '🎀', '🧸', '🎮',
+  '🎧', '🎤', '📱', '💻', '🖥️', '🕹️', '📸', '📷',
+  '📹', '🎬', '📺', '📻', '📡', '⌚', '⏰', '🕰️',
+  '🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼',
+  '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🦄',
+  '🐔', '🐧', '🐦', '🐤', '🐣', '🦆', '🦅', '🦉',
+  '🐢', '🐍', '🦎', '🦂', '🕷️', '🦕', '🦖', '🐙'
 ];
 
 function initializeEmojiPicker() {
@@ -1083,7 +989,7 @@ function stopRecording() {
   elements.voiceButton.classList.remove('recording');
   elements.voiceButton.innerHTML = `
     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-600 dark:text-gray-300" viewBox="0 0 20 20" fill="currentColor">
-      <path fill-rule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clip-rule="evenodd" />
+      <path fill-rule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 005 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clip-rule="evenodd" />
     </svg>
   `;
   
