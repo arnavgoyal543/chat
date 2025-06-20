@@ -1496,7 +1496,7 @@ function throttle(fn, limit) {
 // --- Throttle typing indicator updates ---
 const throttledHandleTyping = throttle(handleTyping, 800); // Only send typing every 800ms
 
-// Replace direct handleTyping event with throttled version
+// Event listeners setup
 function setupEventListeners() {
   // Authentication events
   elements.loginBtn.addEventListener('click', signInWithGoogle);
