@@ -679,4 +679,46 @@ body {
 .message-sent .voice-message .voice-duration {
     color: rgba(255, 255, 255, 0.7);
 }
+.has-unread {
+  background: #d900ff !important;
+  /* Optional: add a border or shadow for more emphasis */
+  /* border-left: 4px solid #ff5252; */
+}
 
+.unread-badge {
+  display: inline-block;
+  margin-left: 8px;
+  min-width: 18px;
+  height: 18px;
+  background: red;
+  color: #fff;
+  border-radius: 9px;
+  font-size: 12px;
+  text-align: center;
+  line-height: 18px;
+  padding: 0 5px;
+  font-weight: bold;
+}
+
+.toast-notification {
+  position: fixed;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #323232;
+  color: #fff;
+  padding: 14px 28px;
+  border-radius: 8px;
+  font-size: 1rem;
+  z-index: 9999;
+  opacity: 0.95;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  transition: opacity 0.3s;
+}
+.toast-notification.hidden {
+  display: none;
+}
+.toast-notification .toast-user {
+  font-weight: bold;
+  margin-right: 8px;
+}
