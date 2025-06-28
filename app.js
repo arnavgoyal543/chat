@@ -1,4 +1,4 @@
-// Main application logic for real-time chat appMore actions
+// Main application logic for real-time chat appMore actionsMore actions
 
 import { auth, database, googleProvider } from './firebase-config.js';
 import { 
@@ -440,9 +440,6 @@ function renderMessages(messages, showAll = false) {
   if (!showAll) {
     elements.messagesList.scrollTop = elements.messagesList.scrollHeight;
   }
-
-  // Setup infinite scroll for loading older messages
-  setupInfiniteScroll();
 }
 
 function createMessageElement(messageId, message) {
@@ -557,8 +554,40 @@ function createMediaContent(mediaURL) {
   const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(mediaURL);
   const isAudio = /\.(mp3|wav|ogg|m4a)$/i.test(mediaURL);
   const isBase64Image = mediaURL.startsWith('data:image/');
-  const isBase64Audio = mediaURL.startsWith('data:audio/');
-
+  const isBase64Audio = mediaURL.startsWith('data:audio/');  // ...existing code...
+  
+  /**
+   * Delete chat history between current user and a specific user.
+   * @param {string} otherUserId - The UID of the other user.
+   */
+  async function deleteChatWithUser(otherUserId) {
+    if (!state.currentUser || !otherUserId) {
+      showError('No user selected for chat deletion.');
+      return;
+    }
+    const chatId = getChatId(state.currentUser.uid, otherUserId);
+    const messagesRef = ref(database, `messages/${chatId}`);
+  
+    if (!confirm('Are you sure you want to delete this chat? This cannot be undone.')) {
+      return;
+    }
+  
+    try {
+      await set(messagesRef, null); // Remove all messages in this chat
+      // Optionally clear local state/cache
+      delete state.messages[chatId];
+      delete messageCache[chatId];
+      showSuccess('Chat deleted successfully.');
+      // If currently viewing this chat, clear UI
+      if (state.selectedUser && state.selectedUser.uid === otherUserId) {
+        elements.messagesList.innerHTML = '';
+      }
+    } catch (error) {
+      showError('Failed to delete chat. Please try again.');
+      console.error('Delete chat error:', error);
+    }
+  }
+  
   // Media cache check
   if (mediaCache[mediaURL]) {
     if (isImage || isBase64Image) {
@@ -595,7 +624,8 @@ function createMediaContent(mediaURL) {
     }
     return `
       <div class="message-media">
-        <img src="${mediaURL}" alt="Shared image" loading="lazy" onerror="this.alt='Failed to load image'; this.style.display='none';">
+
+ <img src="${mediaURL}" alt="Shared image" loading="lazy" onerror="this.alt='Failed to load image'; this.style.display='none';">Add commentMore actions
       </div>
     `;
   } else if (isAudio || isBase64Audio) {
@@ -863,7 +893,62 @@ function cleanupChatListeners() {
   }
 }
 
-// Event listeners setu
+// Event listeners setup
+function setupEventListeners() {
+  // Authentication events
+  elements.loginBtn.addEventListener('click', signInWithGoogle);
+  elements.logoutBtn.addEventListener('click', signOutUser);
+
+  // Message events
+  elements.sendBtn.addEventListener('click', sendMessage);
+  elements.messageText.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+
+  // Typing indicator events
+  elements.messageText.addEventListener('input', handleTyping);
+  elements.messageText.addEventListener('blur', stopTyping);
+
+  // Authentication state changes
+  onAuthStateChanged(auth, (user) => {
+    if (user) {
+      state.currentUser = user;
+
+      // Update UI
+      elements.currentUserName.textContent = user.displayName;
+      elements.currentUserPhoto.src = user.photoURL;
+
+      // Show chat interface
+      elements.loginSection.classList.add('hidden');
+      elements.chatSection.classList.remove('hidden');
+
+      // Setup presence and load data
+      setupPresenceSystem(user);
+      loadUsers();
+
+    } else {
+      state.currentUser = null;
+      state.selectedUser = null;
+
+      // Clean up listeners
+      cleanupChatListeners();
+
+      // Show login interface
+      elements.chatSection.classList.add('hidden');
+      elements.loginSection.classList.remove('hidden');
+    }
+  });
+
+  // Handle page unload
+  window.addEventListener('beforeunload', async () => {
+    if (state.currentUser) {
+      await stopTyping();
+    }
+  });
+}
 
 // Emoji picker functionality
 const emojis = [
@@ -878,12 +963,8 @@ const emojis = [
   '😶', '😐', '😑', '😬', '🙄', '😯', '😦', '😧',
   '😮', '😲', '🥱', '😴', '🤤', '😪', '😵', '🤐',
   '🥴', '🤢', '🤮', '🤧', '😷', '🤒', '🤕', '🤑',
-  '🤠', '😺', '😸',
-  '🙌', '👏', '👋', '🤙', '👍', '👎', '👊', '✊',
-  '🤛', '🤜', '🤞', '✌️', '🤟', '🤘', '👌', '🙏',
-  '🫶', '🤲', '👐', '✋', '🤚', '🖐️', '🖖', '👈',
-  '👉', '👆', '👇', '☝️', '🖕', '✍️','💓', '💗', 
-  '💖', '💘', '💝', '💞', '💕', '❤️',
+'🙌', '👏', '👋', '🤙', '👍', '👎', '👊', '✊','🤛', '🤜', '🤞', '✌️', '🤟', '🤘', '👌', '🙏',
+'🫶', '✍️', '💓', '💗',  '💖', '💘', '💝', '💞', '💕', '❤️',
   '🧡', '💛', '💚', '💙', '💜', '🤎', '🖤', '🤍',
 ];
 function initializeEmojiPicker() {
@@ -1417,145 +1498,3 @@ onAuthStateChanged(auth, (user) => {
     cleanupChatListeners();
   }
 });
-
-// --- Utility: debounce and throttle ---
-function debounce(fn, delay) {
-  let timeout;
-  return function (...args) {
-    clearTimeout(timeout);
-    timeout = setTimeout(() => fn.apply(this, args), delay);
-  };
-}
-
-function throttle(fn, limit) {
-  let inThrottle;
-  return function (...args) {
-    if (!inThrottle) {
-      fn.apply(this, args);
-      inThrottle = true;
-      setTimeout(() => (inThrottle = false), limit);
-    }
-  };
-}
-
-// --- Throttle typing indicator updates ---
-const throttledHandleTyping = throttle(handleTyping, 800); // Only send typing every 800ms
-
-// Event listeners setup
-function setupEventListeners() {
-  // Authentication events
-  elements.loginBtn.addEventListener('click', signInWithGoogle);
-  elements.logoutBtn.addEventListener('click', signOutUser);
-
-  // Message events
-  elements.sendBtn.addEventListener('click', sendMessage);
-  elements.messageText.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      sendMessage();
-    }
-  });
-
-  // Typing indicator events
-  elements.messageText.addEventListener('input', throttledHandleTyping);
-  elements.messageText.addEventListener('blur', stopTyping);
-
-  // Authentication state changes
-  onAuthStateChanged(auth, (user) => {
-    if (user) {
-      state.currentUser = user;
-
-      // Update UI
-      elements.currentUserName.textContent = user.displayName;
-      elements.currentUserPhoto.src = user.photoURL;
-
-      // Show chat interface
-      elements.loginSection.classList.add('hidden');
-      elements.chatSection.classList.remove('hidden');
-
-      // Setup presence and load data
-      setupPresenceSystem(user);
-      loadUsers();
-
-    } else {
-      state.currentUser = null;
-      state.selectedUser = null;
-
-      // Clean up listeners
-      cleanupChatListeners();
-
-      // Show login interface
-      elements.chatSection.classList.add('hidden');
-      elements.loginSection.classList.remove('hidden');
-    }
-  });
-
-  // Handle page unload
-  window.addEventListener('beforeunload', async () => {
-    if (state.currentUser) {
-      await stopTyping();
-    }
-  });
-}
-
-// --- Debounce infinite scroll for loading older messages ---
-function setupInfiniteScroll() {
-  if (!elements.messagesList) return;
-
-  const onScroll = debounce(() => {
-    if (
-      elements.messagesList.scrollTop === 0 &&
-      elements.messagesList.querySelector('.load-more-btn')
-    ) {
-      // User scrolled to top, load all messages
-      const chatId = getChatId(state.currentUser.uid, state.selectedUser.uid);
-      renderMessages(state.messages[chatId], true);
-    }
-  }, 200);
-
-  elements.messagesList.addEventListener('scroll', onScroll);
-}
-
-// Call setupInfiniteScroll after rendering messages
-function renderMessages(messages, showAll = false) {
-  if (!elements.messagesList) return;
-
-  elements.messagesList.innerHTML = '';
-
-  const sortedMessages = Object.entries(messages)
-    .sort(([, a], [, b]) => a.timestamp - b.timestamp);
-
-  let displayMessages = sortedMessages;
-  let showLoadMore = false;
-
-  if (!showAll && sortedMessages.length > MESSAGE_LIMIT) {
-    displayMessages = sortedMessages.slice(-MESSAGE_LIMIT);
-    showLoadMore = true;
-  }
-
-  // Add Load More button if needed
-  if (showLoadMore) {
-    const loadMoreDiv = document.createElement('div');
-    loadMoreDiv.className = 'load-more-messages';
-    loadMoreDiv.innerHTML = `<button id="loadMoreBtn" class="load-more-btn">Load previous messages</button>`;
-    elements.messagesList.appendChild(loadMoreDiv);
-
-    // Attach event
-    document.getElementById('loadMoreBtn').onclick = () => {
-      renderMessages(messages, true);
-    };
-  }
-
-  displayMessages.forEach(([messageId, message]) => {
-    const messageElement = createMessageElement(messageId, message);
-    elements.messagesList.appendChild(messageElement);
-  });
-
-  // Scroll to bottom on new messages (only if not showing all)
-  if (!showAll) {
-    elements.messagesList.scrollTop = elements.messagesList.scrollHeight;
-  }
-
-  // Setup infinite scroll for loading older messages
-  setupInfiniteScroll();
-}
