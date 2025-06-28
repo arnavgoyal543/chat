@@ -59,7 +59,8 @@ const elements = {
   messageInput: null,
   messageText: null,
   sendBtn: null,
-  voiceButton: null
+  voiceButton: null,
+  deleteChatBtn: null
 };
 
 // Initialize DOM elements
@@ -85,6 +86,7 @@ function initializeElements() {
   elements.messageText = document.getElementById('messageText');
   elements.sendBtn = document.getElementById('sendBtn');
   elements.voiceButton = document.getElementById('voiceButton');
+  elements.deleteChatBtn = document.getElementById('deleteChatBtn');
 }
 
 // Error handling utility
@@ -948,6 +950,14 @@ function setupEventListeners() {
       await stopTyping();
     }
   });
+
+  if (elements.deleteChatBtn) {
+    elements.deleteChatBtn.addEventListener('click', () => {
+      if (state.selectedUser) {
+        deleteChatWithUser(state.selectedUser.uid);
+      }
+    });
+  }
 }
 
 // Emoji picker functionality
