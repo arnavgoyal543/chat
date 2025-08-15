@@ -8,14 +8,14 @@ import { getDatabase } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-
 // Your Firebase configuration object
 // IMPORTANT: Replace these values with your actual Firebase project configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyA2Y_jXJRKaQZl4_81igZ2-Ptcsg0Mgtww",
-  authDomain: "mansu-cf312.firebaseapp.com",
-  databaseURL: "https://mansu-cf312-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "mansu-cf312",
-  storageBucket: "mansu-cf312.firebasestorage.app",
-  messagingSenderId: "903982901097",
-  appId: "1:903982901097:web:e32240d30eab6c17fbbff8",
-  measurementId: "G-LDG1DW97HM"
+  apiKey: "AIzaSyCekDN15fZHQ4icxbFHHoYoX_ZHLcOghEU",
+  authDomain: "pixelhope-c862c.firebaseapp.com",
+  databaseURL: "https://pixelhope-c862c-default-rtdb.firebaseio.com",
+  projectId: "pixelhope-c862c",
+  storageBucket: "pixelhope-c862c.firebasestorage.app",
+  messagingSenderId: "300311906122",
+  appId: "1:300311906122:web:4b343c323b7e66071163b3",
+  measurementId: "G-G41C3H05V9"
 };
 
 // Initialize Firebase
@@ -56,4 +56,5 @@ try {
 
 // Export Firebase services for use in other modules
 export { auth, database, googleProvider };
+
 
