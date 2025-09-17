@@ -8,14 +8,13 @@ import { getDatabase } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-
 // Your Firebase configuration object
 // IMPORTANT: Replace these values with your actual Firebase project configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyCekDN15fZHQ4icxbFHHoYoX_ZHLcOghEU",
-  authDomain: "pixelhope-c862c.firebaseapp.com",
-  databaseURL: "https://pixelhope-c862c-default-rtdb.firebaseio.com",
-  projectId: "pixelhope-c862c",
-  storageBucket: "pixelhope-c862c.firebasestorage.app",
-  messagingSenderId: "300311906122",
-  appId: "1:300311906122:web:4b343c323b7e66071163b3",
-  measurementId: "G-G41C3H05V9"
+ apiKey: "AIzaSyAx7veho0B__g2xmWO2IfwfodoX94ggJ_c",
+    authDomain: "chatterbox-lite-od5xk.firebaseapp.com",
+    databaseURL: "https://chatterbox-lite-od5xk-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "chatterbox-lite-od5xk",
+    storageBucket: "chatterbox-lite-od5xk.firebasestorage.app",
+    messagingSenderId: "415560018535",
+    appId: "1:415560018535:web:b56bd7e041cde9c81c82c2"
 };
 
 // Initialize Firebase
@@ -56,5 +55,6 @@ try {
 
 // Export Firebase services for use in other modules
 export { auth, database, googleProvider };
+
 
 
