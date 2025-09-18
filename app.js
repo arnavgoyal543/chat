@@ -316,7 +316,7 @@ function createUserElement(uid, user) {
   userDiv.innerHTML = `
     <div class="flex items-center">
       <div class="relative">
-        <img class="w-10 h-10 rounded-full" src="${user.photoURL || '/default-avatar.png'}" alt="${user.name}">
+        <img class="w-10 h-10 rounded-full" src="${user.photoURL || getDefaultAvatar()}" alt="${user.name}">
         <div class="absolute bottom-0 right-0 w-3 h-3 ${statusClass} rounded-full border-2 border-white"></div>
       </div>
       <div class="ml-3 flex items-center">
@@ -355,7 +355,7 @@ function updateChatHeader() {
   const isOnline = user.online;
 
   elements.chatUserName.textContent = user.name;
-  elements.chatUserPhoto.src = user.photoURL || '/default-avatar.png';
+  elements.chatUserPhoto.src = user.photoURL || getDefaultAvatar();
   elements.chatUserStatus.className = `w-2 h-2 rounded-full mr-2 ${isOnline ? 'status-online' : 'status-offline'}`;
   elements.chatUserStatusText.textContent = isOnline ? 'Online' : 'Offline';
 
@@ -866,7 +866,17 @@ function setupTypingListener() {
   state.typingListeners[chatId] = listener;
 }
 
-// Utility functions
+// Utility function to get default avatar
+function getDefaultAvatar() {
+    // Simple SVG avatar as data URL
+    return 'data:image/svg+xml;base64,' + btoa(`
+        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
+            <circle cx="20" cy="20" r="20" fill="#e5e7eb"/>
+            <circle cx="20" cy="16" r="6" fill="#9ca3af"/>
+            <path d="M8 32c0-6.627 5.373-12 12-12s12 5.373 12 12" fill="#9ca3af"/>
+        </svg>
+    `);
+}
 function getChatId(uid1, uid2) {
   return uid1 < uid2 ? `${uid1}_${uid2}` : `${uid2}_${uid1}`;
 }
@@ -926,7 +936,7 @@ function setupEventListeners() {
 
       // Update UI
       elements.currentUserName.textContent = user.displayName;
-      elements.currentUserPhoto.src = user.photoURL || '/default-avatar.png';
+      elements.currentUserPhoto.src = user.photoURL || getDefaultAvatar();
 
       // Show chat interface
       elements.loginSection.classList.add('hidden');
@@ -1141,7 +1151,7 @@ function initializeProfileSettings() {
     // Open modal
     profileSettingsBtn.onclick = () => {
         displayNameInput.value = state.currentUser.displayName || '';
-        currentProfileAvatar.src = state.currentUser.photoURL || '/default-avatar.png';
+        currentProfileAvatar.src = state.currentUser.photoURL || getDefaultAvatar();
         selectedAvatarFile = null;
         selectedAvatarPreview = null;
         clearProfileMessage();
@@ -1153,7 +1163,7 @@ function initializeProfileSettings() {
         profileSettingsModal.classList.add('hidden');
         // Reset avatar preview if changes weren't saved
         if (selectedAvatarPreview && selectedAvatarFile) {
-            currentProfileAvatar.src = state.currentUser.photoURL || '/default-avatar.png';
+            currentProfileAvatar.src = state.currentUser.photoURL || getDefaultAvatar();
         }
         selectedAvatarFile = null;
         selectedAvatarPreview = null;
@@ -1209,12 +1219,12 @@ function initializeProfileSettings() {
 
             // Update UI elements
             elements.currentUserName.textContent = newDisplayName;
-            elements.currentUserPhoto.src = photoURL || '/default-avatar.png';
+            elements.currentUserPhoto.src = photoURL || getDefaultAvatar();
 
             // Update UI in active chat if it's the current user
             if (state.selectedUser && state.selectedUser.uid === state.currentUser.uid) {
                 elements.chatUserName.textContent = newDisplayName;
-                elements.chatUserPhoto.src = photoURL || '/default-avatar.png';
+                elements.chatUserPhoto.src = photoURL || getDefaultAvatar();
             }
 
             // Update users list to reflect changes
