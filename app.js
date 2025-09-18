@@ -1,6 +1,6 @@
 // Main application logic for real-time chat appMore actionsMore actions
 
-import { auth, database, googleProvider } from './firebase-config.js';
+import { auth, database, storage, googleProvider } from './firebase-config.js';
 import { 
   signInWithPopup, 
   signOut, 
@@ -21,6 +21,11 @@ import {
   equalTo,
   off
 } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-database.js';
+import { 
+  ref as storageRef, 
+  uploadBytes, 
+  getDownloadURL 
+} from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-storage.js';
 
 // Global state management
 const state = {
@@ -1047,16 +1052,89 @@ function initializeProfileSettings() {
     const cancelProfileEdit = document.getElementById('cancelProfileEdit');
     const saveProfileEdit = document.getElementById('saveProfileEdit');
     const displayNameInput = document.getElementById('displayName');
+    const profilePhotoInput = document.getElementById('profilePhotoInput');
+    const profilePhotoPreview = document.getElementById('profilePhotoPreview');
+    const uploadPhotoBtn = document.getElementById('uploadPhotoBtn');
+    const photoLoadingSpinner = document.getElementById('photoLoadingSpinner');
+
+    let selectedPhotoFile = null;
+    let selectedPhotoDataURL = null;
+
+    // Initialize photo preview
+    const initializePhotoPreview = () => {
+        const currentPhotoURL = state.currentUser?.photoURL || 'https://via.placeholder.com/64/e5e7eb/6b7280?text=?';
+        profilePhotoPreview.src = currentPhotoURL;
+    };
+
+    // Handle photo upload button click
+    uploadPhotoBtn.onclick = () => {
+        profilePhotoInput.click();
+    };
+
+    // Handle photo file selection
+    profilePhotoInput.onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        // Validate file size (5MB limit)
+        if (file.size > 5 * 1024 * 1024) {
+            showError('Photo size must be less than 5MB', null);
+            return;
+        }
+
+        // Validate file type
+        if (!file.type.startsWith('image/')) {
+            showError('Please select a valid image file', null);
+            return;
+        }
+
+        selectedPhotoFile = file;
+
+        // Create preview
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            selectedPhotoDataURL = e.target.result;
+            profilePhotoPreview.src = selectedPhotoDataURL;
+        };
+        reader.readAsDataURL(file);
+    };
+
+    // Upload photo to Firebase Storage or fallback to base64
+    const uploadPhoto = async () => {
+        if (!selectedPhotoFile && !selectedPhotoDataURL) {
+            return null;
+        }
+
+        try {
+            // Try Firebase Storage first
+            if (storage) {
+                const photoRef = storageRef(storage, `profile-photos/${state.currentUser.uid}/${Date.now()}`);
+                const snapshot = await uploadBytes(photoRef, selectedPhotoFile);
+                return await getDownloadURL(snapshot.ref);
+            }
+        } catch (error) {
+            console.warn('Firebase Storage upload failed, falling back to base64:', error);
+        }
+
+        // Fallback to base64 if Storage fails
+        return selectedPhotoDataURL;
+    };
 
     // Open modal
     profileSettingsBtn.onclick = () => {
         displayNameInput.value = state.currentUser.displayName || '';
+        initializePhotoPreview();
+        selectedPhotoFile = null;
+        selectedPhotoDataURL = null;
         profileSettingsModal.classList.remove('hidden');
     };
 
     // Close modal
     const closeModal = () => {
         profileSettingsModal.classList.add('hidden');
+        selectedPhotoFile = null;
+        selectedPhotoDataURL = null;
+        profilePhotoInput.value = '';
     };
 
     closeProfileModal.onclick = closeModal;
@@ -1073,35 +1151,51 @@ function initializeProfileSettings() {
 
         try {
             saveProfileEdit.classList.add('btn-loading');
+            photoLoadingSpinner.classList.remove('hidden');
+
+            let photoURL = state.currentUser.photoURL;
+
+            // Upload new photo if selected
+            if (selectedPhotoFile || selectedPhotoDataURL) {
+                photoURL = await uploadPhoto();
+            }
 
             // Update user profile in Firebase Auth
             await updateProfile(auth.currentUser, {
-                displayName: newDisplayName
+                displayName: newDisplayName,
+                photoURL: photoURL
             });
 
             // Update user data in Realtime Database
             const userRef = ref(database, `users/${state.currentUser.uid}`);
             await update(userRef, {
-                name: newDisplayName
+                name: newDisplayName,
+                photoURL: photoURL
             });
 
             // Update local state
             state.currentUser.displayName = newDisplayName;
+            state.currentUser.photoURL = photoURL;
+            
+            // Update UI elements
             elements.currentUserName.textContent = newDisplayName;
+            elements.currentUserPhoto.src = photoURL;
 
             // Update UI in active chat if it's the current user
             if (state.selectedUser && state.selectedUser.uid === state.currentUser.uid) {
                 elements.chatUserName.textContent = newDisplayName;
+                elements.chatUserPhoto.src = photoURL;
             }
 
             closeModal();
-            showSuccess('Display name updated successfully');
+            showSuccess('Profile updated successfully');
 
         } catch (error) {
-            console.error('Error updating display name:', error);
-            showError('Failed to update display name. Please try again.', null);
+            console.error('Error updating profile:', error);
+            showError('Failed to update profile. Please try again.', null);
         } finally {
             saveProfileEdit.classList.remove('btn-loading');
+            photoLoadingSpinner.classList.add('hidden');
         }
     };
 }
