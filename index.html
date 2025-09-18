@@ -51,6 +51,7 @@
                     </button>
                 </div>
             </div>
+
             <!-- Users List -->
             <div class="flex-1 overflow-y-auto">
                 <div class="p-4">
@@ -135,55 +136,41 @@
         </div>
     </div>
 
-   <!-- Profile Settings Modal (Replace your existing modal section with this) -->
-<div id="profileSettingsModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
-    <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4">
-        <div class="flex justify-between items-center mb-4">
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Profile Settings</h3>
-            <button id="closeProfileModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-            </button>
-        </div>
-        <div class="space-y-4">
-            <div>
-                <label for="displayName" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Display Name
-                </label>
-                <input
-                    type="text"
-                    id="displayName"
-                    class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                    placeholder="Enter your display name"
-                >
-            </div>
-            <div>
-                <label for="avatarFile" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Profile Photo
-                </label>
-                <input
-                    type="file"
-                    id="avatarFile"
-                    accept="image/*"
-                    class="w-full p-2 border border-gray-300 rounded-lg dark:border-gray-600"
-                >
-                <div id="avatarPreview" class="mt-2"></div>
-                <small class="text-xs text-gray-400">Max size: 200KB</small>
-            </div>
-            <div id="profileError" class="text-red-500 text-sm"></div>
-            <div id="profileSuccess" class="text-green-500 text-sm"></div>
-            <div class="flex justify-end space-x-2">
-                <button id="cancelProfileEdit" class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
-                    Cancel
+    <!-- Profile Settings Modal -->
+    <div id="profileSettingsModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Profile Settings</h3>
+                <button id="closeProfileModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
                 </button>
-                <button id="saveProfileEdit" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
-                    Save Changes
-                </button>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label for="displayName" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Display Name
+                    </label>
+                    <input
+                        type="text"
+                        id="displayName"
+                        class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                        placeholder="Enter your display name"
+                    >
+                </div>
+                <div class="flex justify-end space-x-2">
+                    <button id="cancelProfileEdit" class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
+                        Cancel
+                    </button>
+                    <button id="saveProfileEdit" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
+                        Save Changes
+                    </button>
+                </div>
             </div>
         </div>
     </div>
-</div>
+
     <!-- Toast Notification -->
     <div id="toastNotification" class="toast-notification hidden"></div>
 
@@ -192,5 +179,4 @@
     <script type="module" src="app.js"></script>
 </body>
 </html>
-
 
