@@ -108,30 +108,86 @@ body {
 .message-bubble {
     position: relative;
     max-width: 70%;
-    padding: 8px 12px;
-    margin: 4px 0;
-    border-radius: 12px;
+    padding: 12px 16px;
+    margin: 6px 0;
+    border-radius: 18px;
     word-wrap: break-word;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    animation: messageSlideIn 0.3s ease-out;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Message slide-in animation */
+@keyframes messageSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .message-sent {
-    background: #3b82f6; /* Blue color */
+    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); /* Blue gradient */
     color: white;
     margin-left: auto;
-    border-bottom-right-radius: 4px;
+    border-bottom-right-radius: 6px;
+    box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
 }
 
 .message-received {
-    background: #e5e7eb; /* Grey color */
-    color: #1f2937; /* Dark grey text */
+    background: #f1f5f9; /* Light gray */
+    color: #1e293b; /* Dark text */
     margin-right: auto;
-    border-bottom-left-radius: 4px;
+    border-bottom-left-radius: 6px;
+    border: 1px solid #e2e8f0;
 }
 
 /* Dark theme adjustments */
 [data-theme="dark"] .message-received {
     background: #374151; /* Darker grey for dark theme */
-    color: #e5e7eb; /* Light grey text for dark theme */
+    color: #f1f5f9; /* Light text for dark theme */
+    border: 1px solid #4b5563;
+}
+
+[data-theme="dark"] .message-sent {
+    box-shadow: 0 2px 4px rgba(59, 130, 246, 0.4);
+}
+
+/* Message with avatar container */
+.message-container {
+    display: flex;
+    align-items: flex-end;
+    margin: 8px 0;
+    gap: 8px;
+}
+
+.message-container.sent {
+    flex-direction: row-reverse;
+}
+
+.message-container.received {
+    flex-direction: row;
+}
+
+/* Avatar styles for messages */
+.message-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    border: 2px solid var(--border-color);
+}
+
+.message-avatar.sent {
+    margin-left: 8px;
+}
+
+.message-avatar.received {
+    margin-right: 8px;
 }
 
 /* Reply button styles */
@@ -484,28 +540,160 @@ body {
     color: rgba(255, 255, 255, 0.7);
 }
 
+/* Mobile hamburger menu button */
+.mobile-menu-toggle {
+    display: none;
+    position: fixed;
+    top: 1rem;
+    left: 1rem;
+    z-index: 20;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 8px;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.mobile-menu-toggle:hover {
+    background: var(--bg-secondary);
+}
+
+/* Mobile sidebar overlay */
+.mobile-sidebar-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 15;
+}
+
 /* Responsive design */
-@media (max-width: 768px) {
+@media (max-width: 640px) {
+    /* Show mobile menu toggle */
+    .mobile-menu-toggle {
+        display: block;
+    }
+    
+    /* Hide sidebar by default on mobile */
     .w-1\/3 {
+        width: 280px;
+        position: fixed;
+        left: -280px;
+        top: 0;
+        z-index: 20;
+        height: 100vh;
+        transition: left 0.3s ease;
+        background: var(--bg-primary);
+        box-shadow: 2px 0 4px rgba(0, 0, 0, 0.1);
+    }
+    
+    /* Show sidebar when active */
+    .w-1\/3.mobile-sidebar-open {
+        left: 0;
+    }
+    
+    /* Show overlay when sidebar is open */
+    .mobile-sidebar-overlay.active {
+        display: block;
+    }
+    
+    /* Adjust chat area for mobile */
+    .flex-1 {
         width: 100%;
-        position: absolute;
+        margin-left: 0;
+    }
+    
+    /* Mobile chat header adjustments */
+    #chatHeader {
+        padding-left: 4rem; /* Space for hamburger menu */
+    }
+    
+    /* Mobile message input - make sticky */
+    #messageInput {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
         z-index: 10;
-        height: 100%;
+        margin: 0;
+        border-radius: 0;
+        border-left: none;
+        border-right: none;
+        border-bottom: none;
     }
     
-    .chat-mobile-hidden {
-        display: none;
+    /* Adjust messages container for sticky input */
+    #messagesContainer {
+        padding-bottom: 6rem; /* Space for sticky input */
+        height: calc(100vh - 10rem); /* Adjust for header and input */
     }
     
+    /* Improve touch targets */
+    .user-item {
+        padding: 16px 12px;
+        min-height: 44px;
+    }
+    
+    button {
+        min-height: 44px;
+        min-width: 44px;
+    }
+    
+    #sendBtn, #voiceButton, #emojiButton {
+        padding: 12px;
+        min-height: 48px;
+        min-width: 48px;
+    }
+    
+    /* Mobile message bubbles */
     .message-bubble {
         max-width: 85%;
+        font-size: 16px; /* Prevent zoom on iOS */
+        padding: 12px 16px;
     }
     
+    /* Mobile emoji picker */
     .emoji-picker {
         width: 100%;
         left: 0;
         right: 0;
         max-height: 250px;
+        bottom: 4rem; /* Above sticky input */
+    }
+    
+    /* Mobile typography adjustments */
+    body {
+        font-size: 16px; /* Prevent zoom on iOS */
+    }
+    
+    #messageText {
+        font-size: 16px; /* Prevent zoom on iOS */
+        padding: 12px;
+    }
+    
+    /* Mobile-specific spacing */
+    .p-4 {
+        padding: 1rem;
+    }
+    
+    /* Hide elements that don't work well on mobile */
+    .chat-mobile-hidden {
+        display: none;
+    }
+}
+
+/* Larger mobile screens (641px - 768px) */
+@media (min-width: 641px) and (max-width: 768px) {
+    .w-1\/3 {
+        width: 300px;
+    }
+    
+    .message-bubble {
+        max-width: 75%;
     }
 }
 

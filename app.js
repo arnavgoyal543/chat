@@ -60,7 +60,10 @@ const elements = {
   messageText: null,
   sendBtn: null,
   voiceButton: null,
-  deleteChatBtn: null
+  deleteChatBtn: null,
+  mobileMenuToggle: null,
+  sidebar: null,
+  mobileSidebarOverlay: null
 };
 
 // Initialize DOM elements
@@ -87,6 +90,9 @@ function initializeElements() {
   elements.sendBtn = document.getElementById('sendBtn');
   elements.voiceButton = document.getElementById('voiceButton');
   elements.deleteChatBtn = document.getElementById('deleteChatBtn');
+  elements.mobileMenuToggle = document.getElementById('mobileMenuToggle');
+  elements.sidebar = document.getElementById('sidebar');
+  elements.mobileSidebarOverlay = document.getElementById('mobileSidebarOverlay');
 }
 
 // Error handling utility
@@ -434,8 +440,8 @@ function renderMessages(messages, showAll = false) {
   }
 
   displayMessages.forEach(([messageId, message]) => {
-    const messageElement = createMessageElement(messageId, message);
-    elements.messagesList.appendChild(messageElement);
+    const messageContainer = createMessageContainer(messageId, message);
+    elements.messagesList.appendChild(messageContainer);
   });
 
   // Scroll to bottom on new messages (only if not showing all)
@@ -958,6 +964,128 @@ function setupEventListeners() {
       }
     });
   }
+
+  // Mobile menu functionality
+  setupMobileMenu();
+}
+
+// Mobile menu functionality
+function setupMobileMenu() {
+  if (!elements.mobileMenuToggle || !elements.sidebar || !elements.mobileSidebarOverlay) {
+    return;
+  }
+
+  // Toggle sidebar on hamburger menu click
+  elements.mobileMenuToggle.addEventListener('click', toggleMobileSidebar);
+  
+  // Close sidebar when overlay is clicked
+  elements.mobileSidebarOverlay.addEventListener('click', closeMobileSidebar);
+  
+  // Handle swipe gestures
+  setupSwipeGestures();
+  
+  // Handle window resize
+  window.addEventListener('resize', handleWindowResize);
+}
+
+function toggleMobileSidebar() {
+  const sidebar = elements.sidebar;
+  const overlay = elements.mobileSidebarOverlay;
+  
+  if (sidebar.classList.contains('mobile-sidebar-open')) {
+    closeMobileSidebar();
+  } else {
+    openMobileSidebar();
+  }
+}
+
+function openMobileSidebar() {
+  elements.sidebar.classList.add('mobile-sidebar-open');
+  elements.mobileSidebarOverlay.classList.add('active');
+  document.body.style.overflow = 'hidden'; // Prevent background scrolling
+}
+
+function closeMobileSidebar() {
+  elements.sidebar.classList.remove('mobile-sidebar-open');
+  elements.mobileSidebarOverlay.classList.remove('active');
+  document.body.style.overflow = ''; // Restore scrolling
+}
+
+function handleWindowResize() {
+  // Close mobile sidebar when switching to desktop view
+  if (window.innerWidth > 640) {
+    closeMobileSidebar();
+  }
+}
+
+// Swipe gesture detection for mobile sidebar
+function setupSwipeGestures() {
+  let startX = 0;
+  let startY = 0;
+  let isSwipping = false;
+
+  // Touch start
+  document.addEventListener('touchstart', (e) => {
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    isSwipping = true;
+  }, { passive: true });
+
+  // Touch move
+  document.addEventListener('touchmove', (e) => {
+    if (!isSwipping) return;
+
+    const currentX = e.touches[0].clientX;
+    const currentY = e.touches[0].clientY;
+    const diffX = startX - currentX;
+    const diffY = startY - currentY;
+
+    // Check if horizontal swipe is more prominent than vertical
+    if (Math.abs(diffX) > Math.abs(diffY)) {
+      // Swipe right to open sidebar (only if starting from left edge)
+      if (diffX < -50 && startX < 20 && window.innerWidth <= 640) {
+        e.preventDefault();
+        openMobileSidebar();
+        isSwipping = false;
+      }
+      // Swipe left to close sidebar
+      else if (diffX > 50 && elements.sidebar.classList.contains('mobile-sidebar-open')) {
+        e.preventDefault();
+        closeMobileSidebar();
+        isSwipping = false;
+      }
+    }
+  }, { passive: false });
+
+  // Touch end
+  document.addEventListener('touchend', () => {
+    isSwipping = false;
+  }, { passive: true });
+}
+
+// Enhanced message rendering with avatars and animations
+function createMessageContainer(messageId, message) {
+  const messageContainer = document.createElement('div');
+  const isSent = message.from === state.currentUser.uid;
+  
+  messageContainer.className = `message-container ${isSent ? 'sent' : 'received'}`;
+  messageContainer.id = messageId;
+  
+  // Create avatar for received messages
+  if (!isSent) {
+    const avatar = document.createElement('img');
+    avatar.className = 'message-avatar received';
+    const sender = state.users[message.from];
+    avatar.src = sender?.photoURL || '/default-avatar.png';
+    avatar.alt = sender?.name || 'User';
+    messageContainer.appendChild(avatar);
+  }
+  
+  // Create message bubble
+  const messageElement = createMessageElement(messageId, message);
+  messageContainer.appendChild(messageElement);
+  
+  return messageContainer;
 }
 
 // Emoji picker functionality
@@ -1271,11 +1399,68 @@ function initializeApp() {
         initializeTheme();
         initializeProfileSettings();
         initializeVoiceRecording();
+        
+        // Always setup mobile menu functionality
+        setupMobileMenuFallback();
+        
         console.log('Chat app initialized successfully');
     } catch (error) {
         console.error('Error initializing app:', error);
-        showError('Failed to initialize app. Please refresh the page.');
+        // Try basic mobile setup even if full app fails
+        setupMobileMenuFallback();
     }
+}
+
+// Fallback mobile menu setup that works without Firebase
+function setupMobileMenuFallback() {
+  const mobileMenuToggle = document.getElementById('mobileMenuToggle');
+  const sidebar = document.getElementById('sidebar');
+  const mobileSidebarOverlay = document.getElementById('mobileSidebarOverlay');
+  
+  if (!mobileMenuToggle || !sidebar || !mobileSidebarOverlay) {
+    return;
+  }
+
+  // Remove any existing listeners to prevent duplicates
+  mobileMenuToggle.replaceWith(mobileMenuToggle.cloneNode(true));
+  const newToggle = document.getElementById('mobileMenuToggle');
+  
+  // Toggle sidebar on hamburger menu click
+  newToggle.addEventListener('click', () => {
+    if (sidebar.classList.contains('mobile-sidebar-open')) {
+      closeMobileSidebarFallback();
+    } else {
+      openMobileSidebarFallback();
+    }
+  });
+  
+  // Close sidebar when overlay is clicked
+  mobileSidebarOverlay.addEventListener('click', closeMobileSidebarFallback);
+  
+  // Handle window resize
+  window.addEventListener('resize', () => {
+    if (window.innerWidth > 640) {
+      closeMobileSidebarFallback();
+    }
+  });
+}
+
+function openMobileSidebarFallback() {
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('mobileSidebarOverlay');
+  
+  if (sidebar) sidebar.classList.add('mobile-sidebar-open');
+  if (overlay) overlay.classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeMobileSidebarFallback() {
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('mobileSidebarOverlay');
+  
+  if (sidebar) sidebar.classList.remove('mobile-sidebar-open');
+  if (overlay) overlay.classList.remove('active');
+  document.body.style.overflow = '';
 }
 
 // Test function to add a sample user (for debugging)
