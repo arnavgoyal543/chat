@@ -4,6 +4,7 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js';
 import { getAuth, GoogleAuthProvider } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js';
 import { getDatabase } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-database.js';
+import { getStorage } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-storage.js';
 
 // Your Firebase configuration object
 // IMPORTANT: Replace these values with your actual Firebase project configuration
@@ -18,12 +19,13 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-let app, auth, database, googleProvider;
+let app, auth, database, storage, googleProvider;
 
 try {
   app = initializeApp(firebaseConfig);
   auth = getAuth(app);
   database = getDatabase(app);
+  storage = getStorage(app);
   googleProvider = new GoogleAuthProvider();
   
   // Add additional Google provider settings for better compatibility
@@ -54,7 +56,7 @@ try {
 }
 
 // Export Firebase services for use in other modules
-export { auth, database, googleProvider };
+export { auth, database, storage, googleProvider };
 
 
 
