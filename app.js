@@ -1,6 +1,6 @@
 // Main application logic for real-time chat appMore actionsMore actions
 
-import { auth, database, googleProvider } from './firebase-config.js';
+import { auth, database, storage, googleProvider } from './firebase-config.js';
 import { 
   signInWithPopup, 
   signOut, 
@@ -21,6 +21,11 @@ import {
   equalTo,
   off
 } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-database.js';
+import {
+  ref as storageRef,
+  uploadBytes,
+  getDownloadURL
+} from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-storage.js';
 
 // Global state management
 const state = {
@@ -311,7 +316,7 @@ function createUserElement(uid, user) {
   userDiv.innerHTML = `
     <div class="flex items-center">
       <div class="relative">
-        <img class="w-10 h-10 rounded-full" src="${user.photoURL || '/default-avatar.png'}" alt="${user.name}">
+        <img class="w-10 h-10 rounded-full" src="${user.photoURL || getDefaultAvatar()}" alt="${user.name}">
         <div class="absolute bottom-0 right-0 w-3 h-3 ${statusClass} rounded-full border-2 border-white"></div>
       </div>
       <div class="ml-3 flex items-center">
@@ -350,7 +355,7 @@ function updateChatHeader() {
   const isOnline = user.online;
 
   elements.chatUserName.textContent = user.name;
-  elements.chatUserPhoto.src = user.photoURL || '/default-avatar.png';
+  elements.chatUserPhoto.src = user.photoURL || getDefaultAvatar();
   elements.chatUserStatus.className = `w-2 h-2 rounded-full mr-2 ${isOnline ? 'status-online' : 'status-offline'}`;
   elements.chatUserStatusText.textContent = isOnline ? 'Online' : 'Offline';
 
@@ -861,7 +866,17 @@ function setupTypingListener() {
   state.typingListeners[chatId] = listener;
 }
 
-// Utility functions
+// Utility function to get default avatar
+function getDefaultAvatar() {
+    // Simple SVG avatar as data URL
+    return 'data:image/svg+xml;base64,' + btoa(`
+        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
+            <circle cx="20" cy="20" r="20" fill="#e5e7eb"/>
+            <circle cx="20" cy="16" r="6" fill="#9ca3af"/>
+            <path d="M8 32c0-6.627 5.373-12 12-12s12 5.373 12 12" fill="#9ca3af"/>
+        </svg>
+    `);
+}
 function getChatId(uid1, uid2) {
   return uid1 < uid2 ? `${uid1}_${uid2}` : `${uid2}_${uid1}`;
 }
@@ -921,7 +936,7 @@ function setupEventListeners() {
 
       // Update UI
       elements.currentUserName.textContent = user.displayName;
-      elements.currentUserPhoto.src = user.photoURL;
+      elements.currentUserPhoto.src = user.photoURL || getDefaultAvatar();
 
       // Show chat interface
       elements.loginSection.classList.add('hidden');
@@ -1047,16 +1062,112 @@ function initializeProfileSettings() {
     const cancelProfileEdit = document.getElementById('cancelProfileEdit');
     const saveProfileEdit = document.getElementById('saveProfileEdit');
     const displayNameInput = document.getElementById('displayName');
+    const currentProfileAvatar = document.getElementById('currentProfileAvatar');
+    const changeAvatarBtn = document.getElementById('changeAvatarBtn');
+    const avatarFileInput = document.getElementById('avatarFileInput');
+    const profileMessages = document.getElementById('profileMessages');
+
+    let selectedAvatarFile = null;
+    let selectedAvatarPreview = null;
+
+    // Avatar file input change handler
+    avatarFileInput.onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        // Validate file size (max 5MB)
+        if (file.size > 5 * 1024 * 1024) {
+            showProfileMessage('File size must be less than 5MB', 'error');
+            return;
+        }
+
+        // Validate file type
+        if (!file.type.startsWith('image/')) {
+            showProfileMessage('Please select an image file', 'error');
+            return;
+        }
+
+        selectedAvatarFile = file;
+        
+        // Show preview
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            selectedAvatarPreview = e.target.result;
+            currentProfileAvatar.src = selectedAvatarPreview;
+        };
+        reader.readAsDataURL(file);
+    };
+
+    // Change avatar button click handler
+    changeAvatarBtn.onclick = () => {
+        avatarFileInput.click();
+    };
+
+    // Show profile message helper
+    function showProfileMessage(message, type) {
+        profileMessages.textContent = message;
+        profileMessages.className = `profile-messages ${type}`;
+        profileMessages.classList.remove('hidden');
+        
+        if (type === 'success') {
+            setTimeout(() => {
+                profileMessages.classList.add('hidden');
+            }, 3000);
+        }
+    }
+
+    // Clear profile message
+    function clearProfileMessage() {
+        profileMessages.classList.add('hidden');
+    }
+
+    // Upload avatar to Firebase Storage
+    async function uploadAvatar(file, userId) {
+        try {
+            if (!storage) {
+                // Fallback to base64 if Firebase Storage is not available
+                return new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => resolve(e.target.result);
+                    reader.readAsDataURL(file);
+                });
+            }
+
+            const avatarRef = storageRef(storage, `avatars/${userId}/${Date.now()}_${file.name}`);
+            const snapshot = await uploadBytes(avatarRef, file);
+            const downloadURL = await getDownloadURL(snapshot.ref);
+            return downloadURL;
+        } catch (error) {
+            console.error('Error uploading to Firebase Storage:', error);
+            // Fallback to base64
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.readAsDataURL(file);
+            });
+        }
+    }
 
     // Open modal
     profileSettingsBtn.onclick = () => {
         displayNameInput.value = state.currentUser.displayName || '';
+        currentProfileAvatar.src = state.currentUser.photoURL || getDefaultAvatar();
+        selectedAvatarFile = null;
+        selectedAvatarPreview = null;
+        clearProfileMessage();
         profileSettingsModal.classList.remove('hidden');
     };
 
     // Close modal
     const closeModal = () => {
         profileSettingsModal.classList.add('hidden');
+        // Reset avatar preview if changes weren't saved
+        if (selectedAvatarPreview && selectedAvatarFile) {
+            currentProfileAvatar.src = state.currentUser.photoURL || getDefaultAvatar();
+        }
+        selectedAvatarFile = null;
+        selectedAvatarPreview = null;
+        clearProfileMessage();
     };
 
     closeProfileModal.onclick = closeModal;
@@ -1067,39 +1178,64 @@ function initializeProfileSettings() {
         const newDisplayName = displayNameInput.value.trim();
 
         if (!newDisplayName) {
-            showError('Display name cannot be empty', null);
+            showProfileMessage('Display name cannot be empty', 'error');
             return;
         }
 
         try {
             saveProfileEdit.classList.add('btn-loading');
+            clearProfileMessage();
+
+            let photoURL = state.currentUser.photoURL;
+
+            // Upload new avatar if selected
+            if (selectedAvatarFile) {
+                showProfileMessage('Uploading avatar...', 'success');
+                photoURL = await uploadAvatar(selectedAvatarFile, state.currentUser.uid);
+            }
 
             // Update user profile in Firebase Auth
-            await updateProfile(auth.currentUser, {
-                displayName: newDisplayName
-            });
+            const updateData = { displayName: newDisplayName };
+            if (photoURL !== state.currentUser.photoURL) {
+                updateData.photoURL = photoURL;
+            }
+
+            await updateProfile(auth.currentUser, updateData);
 
             // Update user data in Realtime Database
             const userRef = ref(database, `users/${state.currentUser.uid}`);
-            await update(userRef, {
-                name: newDisplayName
-            });
+            const dbUpdateData = { name: newDisplayName };
+            if (photoURL !== state.currentUser.photoURL) {
+                dbUpdateData.photoURL = photoURL;
+            }
+            
+            await update(userRef, dbUpdateData);
 
             // Update local state
             state.currentUser.displayName = newDisplayName;
+            if (photoURL !== state.currentUser.photoURL) {
+                state.currentUser.photoURL = photoURL;
+            }
+
+            // Update UI elements
             elements.currentUserName.textContent = newDisplayName;
+            elements.currentUserPhoto.src = photoURL || getDefaultAvatar();
 
             // Update UI in active chat if it's the current user
             if (state.selectedUser && state.selectedUser.uid === state.currentUser.uid) {
                 elements.chatUserName.textContent = newDisplayName;
+                elements.chatUserPhoto.src = photoURL || getDefaultAvatar();
             }
 
+            // Update users list to reflect changes
+            renderUsersList();
+
             closeModal();
-            showSuccess('Display name updated successfully');
+            showSuccess('Profile updated successfully');
 
         } catch (error) {
-            console.error('Error updating display name:', error);
-            showError('Failed to update display name. Please try again.', null);
+            console.error('Error updating profile:', error);
+            showProfileMessage('Failed to update profile. Please try again.', 'error');
         } finally {
             saveProfileEdit.classList.remove('btn-loading');
         }

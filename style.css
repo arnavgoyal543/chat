@@ -722,3 +722,75 @@ body {
   font-weight: bold;
   margin-right: 8px;
 }
+
+/* Avatar upload styles */
+.avatar-upload-container {
+    position: relative;
+    display: inline-block;
+}
+
+.avatar-upload-container .avatar-preview {
+    width: 96px;
+    height: 96px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 4px solid var(--border-color);
+    transition: opacity 0.2s;
+}
+
+.avatar-upload-container:hover .avatar-preview {
+    opacity: 0.8;
+}
+
+.avatar-upload-btn {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    background: #3b82f6;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.avatar-upload-btn:hover {
+    background: #2563eb;
+}
+
+.profile-messages {
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 14px;
+    margin: 8px 0;
+}
+
+.profile-messages.error {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #dc2626;
+}
+
+.profile-messages.success {
+    background: #f0f9f4;
+    border: 1px solid #bbf7d0;
+    color: #059669;
+}
+
+[data-theme="dark"] .profile-messages.error {
+    background: rgba(220, 38, 38, 0.1);
+    border-color: rgba(220, 38, 38, 0.3);
+    color: #fca5a5;
+}
+
+[data-theme="dark"] .profile-messages.success {
+    background: rgba(5, 150, 105, 0.1);
+    border-color: rgba(5, 150, 105, 0.3);
+    color: #6ee7b7;
+}
