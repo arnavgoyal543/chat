@@ -93,6 +93,30 @@ function initializeElements() {
   elements.sidebar = document.getElementById('sidebar');
   elements.chatMain = document.getElementById('chatMain');
   elements.backBtn = document.getElementById('backBtn');
+
+  // Back button functionality
+  if (elements.backBtn) {
+    elements.backBtn.onclick = () => {
+      elements.chatSection.classList.remove('chat-active');
+    };
+  }
+}
+
+// Update the selectUser function to trigger the mobile view
+function selectUser(uid, user) {
+  if (state.selectedUser) {
+    cleanupChatListeners();
+  }
+
+  state.selectedUser = { uid, ...user };
+
+  updateChatHeader();
+  showChatInterface();
+  loadMessages();
+  setupTypingListener();
+
+  // This line switches the view on mobile
+  elements.chatSection.classList.add('chat-active');
 }
 
 // Error handling utility
@@ -1522,4 +1546,5 @@ onAuthStateChanged(auth, (user) => {
     cleanupChatListeners();
   }
 });
+
 
