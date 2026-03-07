@@ -732,3 +732,17 @@ body {
   margin-right: 8px;
 }
 
+@media (max-width: 768px) {
+    #sidebar { width: 100%; }
+    #chatMain { display: none; } /* Hide chat initially on mobile */
+
+    /* Show chat and hide list when a chat is selected */
+    #chatSection.chat-active #sidebar { display: none; }
+    #chatSection.chat-active #chatMain { display: flex; width: 100%; }
+}
+
+/* Hide back button on desktop */
+@media (min-width: 769px) {
+    #backBtn { display: none; }
+}
+
