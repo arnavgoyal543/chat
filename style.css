@@ -485,30 +485,39 @@ body {
 }
 
 /* Responsive design */
+/* Mobile Responsiveness */
 @media (max-width: 768px) {
-    .w-1\/3 {
+    #sidebar {
         width: 100%;
-        position: absolute;
-        z-index: 10;
-        height: 100%;
+        display: block;
     }
-    
-    .chat-mobile-hidden {
+
+    #chatMain {
+        display: none; /* Hide chat area by default on mobile */
+    }
+
+    /* When a chat is active, swap visibility */
+    #chatSection.chat-active #sidebar {
         display: none;
     }
-    
+
+    #chatSection.chat-active #chatMain {
+        display: flex;
+        width: 100%;
+    }
+
+    /* Message bubbles can take more width on mobile */
     .message-bubble {
         max-width: 85%;
     }
-    
-    .emoji-picker {
-        width: 100%;
-        left: 0;
-        right: 0;
-        max-height: 250px;
-    }
 }
 
+/* Ensure the back button is hidden on desktops */
+@media (min-width: 769px) {
+    #backBtn {
+        display: none;
+    }
+}
 /* Focus states */
 .user-item:focus {
     outline: 2px solid #3b82f6;
@@ -722,3 +731,4 @@ body {
   font-weight: bold;
   margin-right: 8px;
 }
+
