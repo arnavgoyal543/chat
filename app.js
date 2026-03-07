@@ -61,6 +61,9 @@ const elements = {
   sendBtn: null,
   voiceButton: null,
   deleteChatBtn: null
+  sidebar: null,
+  chatMain: null,
+  backBtn: null
 };
 
 // Initialize DOM elements
@@ -87,6 +90,9 @@ function initializeElements() {
   elements.sendBtn = document.getElementById('sendBtn');
   elements.voiceButton = document.getElementById('voiceButton');
   elements.deleteChatBtn = document.getElementById('deleteChatBtn');
+  elements.sidebar = document.getElementById('sidebar');
+  elements.chatMain = document.getElementById('chatMain');
+  elements.backBtn = document.getElementById('backBtn');
 }
 
 // Error handling utility
@@ -328,12 +334,20 @@ function createUserElement(uid, user) {
 }
 
 function selectUser(uid, user) {
-  // Clean up previous chat
   if (state.selectedUser) {
     cleanupChatListeners();
   }
 
   state.selectedUser = { uid, ...user };
+
+  updateChatHeader();
+  showChatInterface();
+  loadMessages();
+  setupTypingListener();
+
+  // Trigger mobile view switch
+  elements.chatSection.classList.add('chat-active');
+}
 
   // Update UI
   // renderUsersList(); // REMOVE THIS LINE
@@ -1508,3 +1522,4 @@ onAuthStateChanged(auth, (user) => {
     cleanupChatListeners();
   }
 });
+
